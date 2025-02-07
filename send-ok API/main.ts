@@ -19,6 +19,7 @@ const authenticate = (req: Request, res: Response, next: NextFunction) => {
 // データベースから3Hカラムの値を取得する関数
 const getTemplate3HStatus = async (confirmationCode: string): Promise<boolean> => {
   try {
+    // ここのテーブル名とスキーマ名をなおす、3H以内に送信する場合をTとしているが、絶対に送る、をTにしているのでロジックを変更する
     const query = `
       SELECT yt.3H FROM m2m-core.su_wo.table sw
       JOIN m2m-core.su_wo.yamakasa_template yt ON sw.template_id = yt.id

@@ -17,13 +17,14 @@ const authenticate = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // データベースから3Hカラムの値を取得する関数
-const getTemplate3HStatus = async (confirmationCode: string): Promise<boolean> => {
+const getTemplateIsForceSendStatus = async (confirmationCode: string): Promise<boolean> => {
   try {
     // ここのテーブル名とスキーマ名をなおす、3H以内に送信する場合をTとしているが、絶対に送る、をTにしているのでロジックを変更する
     const query = `
-      SELECT yt.3H FROM m2m-core.su_wo.table sw
-      JOIN m2m-core.su_wo.yamakasa_template yt ON sw.template_id = yt.id
-      WHERE sw.confirmation_code = ?
+      SELECT yt.is_force_send 
+      FROM m2m-core.su_wo.today_send_planner_log AS  tsp
+      LEFT OUTER JOIN m2m-core.su_wo.yamakasa_template yt ON tsp.template_id = yt.id
+      WHERE tsp.confirmation_code = ?
     `;
     const result = await db.query(query, [confirmationCode]);
     return result.length > 0 ? result[0]['3H'] === true : false;
@@ -47,9 +48,9 @@ const canSendMessage = async (confirmationCode: string, lastSentAt: string, rese
   const diffHours = (now.getTime() - lastSentDate.getTime()) / (1000 * 60 * 60);
   let isTimeValid = diffHours >= 3;
 
-  // 追加ロジック: 3Hカラムの値がFALSEなら、isTimeValidをTRUEにする
-  const template3HStatus = await getTemplate3HStatus(confirmationCode);
-  if (!template3HStatus) {
+  // 追加ロジック: 3Hカラムの値がTRUEなら、isTimeValidをTRUEにする
+  const templateIsForceSendStatus = await getTemplateIsForceSendStatus(confirmationCode);
+  if (templateIsForceSendStatus) {
     isTimeValid = true;
   }
 

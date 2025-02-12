@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import bodyParser from 'body-parser';
-import { db } from './database'; // データベース接続モジュール（仮）
+import { db } from './database.ts'; // データベース接続モジュール（仮）
+import { RequestHandler } from 'express';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -8,25 +9,35 @@ const PORT = process.env.PORT || 3000;
 app.use(bodyParser.json());
 
 // 認証ミドルウェア
-const authenticate = (req: Request, res: Response, next: NextFunction) => {
+const authenticate: RequestHandler = (req, res, next) => {
   const secretKey = req.headers['matsuri-symmetric-key'];
+
   if (secretKey !== '3N37m-ZKYm0YJAj03iqqJrVgOl1-4_g1cmXMnvRIFh0') {
-    return res.status(401).json({ error: 'キーが違うよorないよ' });
+    // ここで実際にレスポンスを返している
+    res.status(401).json({ error: 'キーが違うよorないよ' });
+    return; 
+    // ↑ 関数の戻り値としては「undefined」になる。Responseを"return"していない
   }
+
+  // 認証OKの場合だけ next() を呼ぶ
   next();
 };
 
 // データベースから3Hカラムの値を取得する関数
 const getTemplateIsForceSendStatus = async (confirmationCode: string): Promise<boolean> => {
   try {
-    // ここのテーブル名とスキーマ名をなおす、3H以内に送信する場合をTとしているが、絶対に送る、をTにしているのでロジックを変更する
     const query = `
-      SELECT tsp.is_force_send 
-      FROM m2m-core.su_wo.today_send_planner_log AS  tsp
-      WHERE tsp.confirmation_code = ?
+      SELECT
+        tsp.is_force_send
+      FROM
+        \`m2m-core.su_wo.today_send_planner_log\` AS tsp
+      WHERE
+        tsp.confirmation_code = @confirmation_code
     `;
-    const result = await db.query(query, [confirmationCode]);
-    return result.length > 0 ? result[0]['3H'] === true : false;
+
+    const result = await db.query(query, { confirmation_code: confirmationCode });
+    return result.length > 0 && result[0].is_force_send === true;
+    
   } catch (error) {
     console.error('Error fetching 3H status:', error);
     return false; // デフォルト値
@@ -58,22 +69,28 @@ const canSendMessage = async (confirmationCode: string, lastSentAt: string, rese
 };
 
 // メインエンドポイント
-app.post('/send', authenticate, async (req: Request, res: Response) => {
+app.post('/send', authenticate, async (req: Request, res: Response): Promise<void> => {
   const { confirmation_code, last_sent_at, reservation_status } = req.body;
 
   if (!confirmation_code || !last_sent_at || !reservation_status) {
-    return res.status(400).json({ error: 'bad requestだにょデータ形式なおせよ' });
+    // 400を返して、そこで処理終了
+    res.status(400).json({ error: 'bad requestだにょデータ形式なおせよ' });
+    return; // ← 関数としては何も（void）返さない
   }
 
   try {
     const isSendable = await canSendMessage(confirmation_code, last_sent_at, reservation_status);
-    return res.json({
-      status: isSendable ? 'OK' : 'NG'
-    });
+
+    // クライアントへレスポンス送信
+    res.json({ status: isSendable ? 'OK' : 'NG' });
+    return;
   } catch (error) {
-    return res.status(500).json({ error: 'ごめんちょ' });
+    // 500エラーを返して終了
+    res.status(500).json({ error: 'ごめんちょ' });
+    return;
   }
 });
+
 
 // 404ハンドリング
 app.use((req, res) => {

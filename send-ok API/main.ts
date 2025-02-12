@@ -19,20 +19,31 @@ const authenticate = (req: Request, res: Response, next: NextFunction) => {
 // データベースから3Hカラムの値を取得する関数
 const getTemplateIsForceSendStatus = async (confirmationCode: string): Promise<boolean> => {
   try {
-    // ここのテーブル名とスキーマ名をなおす、3H以内に送信する場合をTとしているが、絶対に送る、をTにしているのでロジックを変更する
     const query = `
-      SELECT yt.is_force_send 
-      FROM m2m-core.su_wo.today_send_planner_log AS  tsp
-      LEFT OUTER JOIN m2m-core.su_wo.yamakasa_template yt ON tsp.template_id = yt.id
+      SELECT tsp.is_force_send 
+      FROM m2m-core.su_wo.today_send_planner_log AS tsp
       WHERE tsp.confirmation_code = ?
     `;
     const result = await db.query(query, [confirmationCode]);
-    return result.length > 0 ? result[0]['3H'] === true : false;
+
+    // レコードが見つからない場合はエラーを投げる（404扱い）
+    if (result.length === 0) {
+      throw { status: 404, message: 'confirmation_code が見つからない' };
+    }
+
+    return result[0]['is_force_send'] === true;
   } catch (error) {
-    console.error('Error fetching 3H status:', error);
-    return false; // デフォルト値
+    console.error('Error fetching is_force_send status:', error);
+
+    // 404エラーが発生した場合はそのまま投げる
+    if (error.status === 404) {
+      throw error;
+    }
+
+    return false; // その他のエラー時はデフォルトで false を返す
   }
 };
+
 
 // 送信可否判定ロジック
 const canSendMessage = async (confirmationCode: string, lastSentAt: string, reservationStatus: string): Promise<boolean> => {

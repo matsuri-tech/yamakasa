@@ -8,13 +8,15 @@ const PORT = process.env.PORT || 3000;
 app.use(bodyParser.json());
 
 // 認証ミドルウェア
-const authenticate = (req: Request, res: Response, next: NextFunction) => {
+const authenticate = (req: Request, res: Response, next: NextFunction): void => {
   const secretKey = req.headers['matsuri-symmetric-key'];
   if (secretKey !== '3N37m-ZKYm0YJAj03iqqJrVgOl1-4_g1cmXMnvRIFh0') {
-    return res.status(401).json({ error: 'キーが違うよorないよ' });
+    res.status(401).json({ error: 'キーが違うよorないよ' });
+    return; // ここで明示的に関数を終了
   }
   next();
 };
+
 
 // データベースから3Hカラムの値を取得する関数
 const getTemplateIsForceSendStatus = async (confirmationCode: string): Promise<boolean> => {
@@ -70,22 +72,26 @@ const canSendMessage = async (confirmationCode: string, lastSentAt: string, rese
 };
 
 // メインエンドポイント
-app.post('/send', authenticate, async (req: Request, res: Response) => {
+app.post('/send', authenticate, async (req: Request, res: Response): Promise<void> => {
   const { confirmation_code, last_sent_at, reservation_status } = req.body;
 
   if (!confirmation_code || !last_sent_at || !reservation_status) {
-    return res.status(400).json({ error: 'bad requestだにょデータ形式なおせよ' });
+    res.status(400).json({ error: 'bad requestだにょデータ形式なおせよ' });
+    return; // 明示的に関数を終了する
   }
 
   try {
     const isSendable = await canSendMessage(confirmation_code, last_sent_at, reservation_status);
-    return res.json({
+    res.json({
       status: isSendable ? 'OK' : 'NG'
     });
+    return;
   } catch (error) {
-    return res.status(500).json({ error: 'ごめんちょ' });
+    res.status(500).json({ error: 'ごめんちょ' });
+    return;
   }
 });
+
 
 // 404ハンドリング
 app.use((req, res) => {

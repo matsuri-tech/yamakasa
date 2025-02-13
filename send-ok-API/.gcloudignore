@@ -1,0 +1,3 @@
+# .gcloudignore
+test.ts
+node_modules

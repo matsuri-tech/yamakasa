@@ -1,5 +1,12 @@
 {
+  "scripts": {
+    "build": "tsc"
+  },
+
+  "main": "dist/main.js",
+
   "dependencies": {
+    "typescript": "^5.7.3",
     "@google-cloud/bigquery": "^7.9.1",
     "body-parser": "^1.20.3",
     "express": "^4.21.2"
@@ -8,7 +15,6 @@
     "@types/body-parser": "^1.19.5",
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.3"
+    "ts-node": "^10.9.2"
   }
 }

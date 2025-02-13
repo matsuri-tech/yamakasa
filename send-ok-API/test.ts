@@ -24,7 +24,7 @@ const authenticate: RequestHandler = (req, res, next) => {
 };
 
 // データベースから3Hカラムの値を取得する関数
-const getTemplateIsForceSendStatus = async (confirmationCodes: string): Promise<boolean> => {
+const getTemplateIsForceSendStatus = async (confirmationCode: string): Promise<boolean> => {
   try {
     const query = `
       SELECT
@@ -32,10 +32,10 @@ const getTemplateIsForceSendStatus = async (confirmationCodes: string): Promise<
       FROM
         \`m2m-core.su_wo.today_send_planner_log\` AS tsp
       WHERE
-        tsp.confirmation_codes = @confirmation_codes
+        tsp.confirmation_code = @confirmation_code
     `;
 
-    const result = await db.query(query, { confirmation_codes: confirmationCodes });
+    const result = await db.query(query, { confirmation_code: confirmationCode });
     
     // レコードがない場合は 404 エラー扱いにする
     if (result.length === 0) {
@@ -55,8 +55,8 @@ const getTemplateIsForceSendStatus = async (confirmationCodes: string): Promise<
 };
 
 // 送信可否判定ロジック
-const canSendMessage = async (confirmationCodes: string, lastSentAt: string, reservationStatus: string): Promise<boolean> => {
-  if (!confirmationCodes || !lastSentAt || !reservationStatus) return false;
+const canSendMessage = async (confirmationCode: string, lastSentAt: string, reservationStatus: string): Promise<boolean> => {
+  if (!confirmationCode || !lastSentAt || !reservationStatus) return false;
 
   // 条件1: 予約ステータスが適切であること
   const forbiddenStatuses = ['Canceled', 'Unknown'];
@@ -69,7 +69,7 @@ const canSendMessage = async (confirmationCodes: string, lastSentAt: string, res
   let isTimeValid = diffHours >= 3;
 
   // 追加ロジック: 3Hカラムの値がTRUEなら、isTimeValidをTRUEにする
-  const templateIsForceSendStatus = await getTemplateIsForceSendStatus(confirmationCodes);
+  const templateIsForceSendStatus = await getTemplateIsForceSendStatus(confirmationCode);
   if (templateIsForceSendStatus) {
     isTimeValid = true;
   }
@@ -80,28 +80,34 @@ const canSendMessage = async (confirmationCodes: string, lastSentAt: string, res
 
 // メインエンドポイント
 app.post('/send', authenticate, async (req: Request, res: Response): Promise<void> => {
-  console.log('Incoming body:', req.body); // ← 追加
-  const { confirmation_codes, last_sent_at, reservation_status } = req.body;
+    console.log('Incoming body:', req.body); // ← 追加
+  const { confirmation_code, last_sent_at, reservation_status } = req.body;
 
-  if (!confirmation_codes || !last_sent_at || !reservation_status) {
+  if (!confirmation_code || !last_sent_at || !reservation_status) {
     // 400を返して、そこで処理終了
     res.status(400).json({ error: 'bad requestだにょデータ形式なおせよ' });
     return; // ← 関数としては何も（void）返さない
   }
 
   try {
-    const isSendable = await canSendMessage(confirmation_codes, last_sent_at, reservation_status);
-
-    // クライアントへレスポンス送信
+    const isSendable = await canSendMessage(confirmation_code, last_sent_at, reservation_status);
     res.json({ status: isSendable ? 'OK' : 'NG' });
     return;
-  } catch (error) {
-    // 500エラーを返して終了
+  
+  } catch (error: any) {
+    // 404エラーの場合だけ 404 を返す
+    if (error.status === 404) {
+      res.status(404).json({ error: error.message || 'Not Found' });
+      return;
+    }
+  
+    // その他のエラーは 500
+    console.error('Unexpected error:', error);
     res.status(500).json({ error: 'ごめんちょ' });
     return;
   }
+  
 });
-
 
 // 404ハンドリング
 app.use((req, res) => {

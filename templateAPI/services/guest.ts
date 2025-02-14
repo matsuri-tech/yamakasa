@@ -1,7 +1,7 @@
 //ゲスト情報を取得するクラス
 export class GuestAttribute {
   listing_id: string;
-  nationality: string[];
+  nationality: string[];  // nationalityはリクエストボディから受け取る
   confirmation_code: string;
 
   constructor(listing_id: string, nationality: string[], confirmation_code: string) {
@@ -11,22 +11,7 @@ export class GuestAttribute {
   }
 
   // BigQueryUtility を使ってデータを取得する静的メソッド
-  static async get_nationality_and_listindid(confirmation_code: string, bigQueryUtility: BigQueryUtility): Promise<GuestAttribute> {
-    const nationalityQuery = `
-      SELECT nationality
-      FROM (
-        SELECT ROW_NUMBER() OVER (PARTITION BY a.id ORDER BY b.arrived_at ASC) as row_num,
-               b.nationality
-        FROM m2m-core.m2m_checkin_prod.reservation AS a
-        LEFT OUTER JOIN m2m-core.m2m_checkin_prod.guest AS b
-        ON a.id = b.reservation_id
-        WHERE b.arrived_at IS NOT NULL
-          AND a.stay_state = '1'
-          AND a.code = @confirmation_code
-      )
-      WHERE row_num = 1
-    `;
-    
+  static async get_listing_id(confirmation_code: string, bigQueryUtility: BigQueryUtility): Promise<GuestAttribute> {
     const listingIdQuery = `
       SELECT b.core_listing_id
       FROM m2m-core.m2m_checkin_prod.reservation AS a
@@ -36,16 +21,12 @@ export class GuestAttribute {
     `;
     
     try {
-      // nationality を取得
-      const nationalityRows = await bigQueryUtility.selectFromBQ(nationalityQuery, { confirmation_code });
-      const nationality = nationalityRows.length > 0 ? nationalityRows.map((row: any) => row.nationality) : null;
-
       // listing_id を取得
       const listingIdRows = await bigQueryUtility.selectFromBQ(listingIdQuery, { confirmation_code });
       const listing_id = listingIdRows.length > 0 ? listingIdRows[0].core_listing_id : null;
 
-      // 取得したデータで GuestAttribute インスタンスを作成
-      return new GuestAttribute(listing_id, nationality, confirmation_code);
+      // 取得したlisting_idとリクエストボディからのnationalityでGuestAttributeインスタンスを作成
+      return new GuestAttribute(listing_id, [], confirmation_code);  // nationalityはリクエストボディから渡されるので空の配列を使っても問題なし
     } catch (error) {
       console.error('Error fetching data from BigQuery:', error);
       throw new Error('Failed to fetch data from BigQuery');
@@ -53,6 +34,7 @@ export class GuestAttribute {
   }
 }
 
+//今日の日付からphaseと各ポイントから何日離れているのかを計算するクラス
 export class GuestJourneyPhase {
   today_date: string;
   booked_date: string;
@@ -128,6 +110,7 @@ export class GuestJourneyPhase {
   }
 }
 
+//トラブル、レビュー、清掃遅延、事前予約の情報を取得するクラス
 export class GuestJourneyEvent {
   trouble_genre: string[];
   status_review: boolean;

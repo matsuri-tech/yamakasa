@@ -99,7 +99,7 @@ export class GuestJourneyPhase {
       return Math.floor((new Date(today).getTime() - new Date(eventDate).getTime()) / (1000 * 60 * 60 * 24));
   }
 
-  // 設定したステータスがどのenentDateに当てはまるのか
+  // isStatusActiveで設定したステータスがどのenentDateに当てはまるのか
   private setStatus(today: string): void {
       this.status_booked = this.isStatusActive(this.booked_date, today);
       this.status_checkin = this.isStatusActive(this.checkin_date, today);

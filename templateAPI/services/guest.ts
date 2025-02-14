@@ -66,22 +66,65 @@ export class GuestJourneyPhase {
   status_checkout: boolean;
   confirmation_code: string;
 
-  constructor(today_date: string, booked_date: string, checkin_date: string, checkout_date: string, confirmation_code: string) {
-      this.today_date = today_date;
-      this.booked_date = booked_date;
-      this.checkin_date = checkin_date;
-      this.checkout_date = checkout_date;
-      this.days_from_booking = this.calculateDays(today_date, booked_date);
-      this.days_from_checkin = this.calculateDays(today_date, checkin_date);
-      this.days_from_checkout = this.calculateDays(today_date, checkout_date);
-      this.status_booked = !!booked_date;
-      this.status_checkin = !!checkin_date;
-      this.status_checkout = !!checkout_date;
+  constructor(confirmation_code: string) {
+      this.today_date = new Date().toISOString().split('T')[0]; // yyyy-mm-dd形式で今日の日付を取得
       this.confirmation_code = confirmation_code;
   }
 
+  // SQLで日付を取得するメソッド
+  private async getDatesFromBQ(confirmation_code: string, bigQueryUtility: BigQueryUtility): Promise<void> {
+      const query = `
+          SELECT bookedAt, checkin, checkout
+          FROM m2m-core.dx_m2m_core.reservations
+          WHERE reservationCode = @confirmation_code
+      `;
+      
+      try {
+          const rows = await bigQueryUtility.selectFromBQ(query, { confirmation_code });
+          if (rows.length > 0) {
+              this.booked_date = rows[0].bookedAt;
+              this.checkin_date = rows[0].checkin;
+              this.checkout_date = rows[0].checkout;
+          } else {
+              throw new Error('No reservation data found');
+          }
+      } catch (error) {
+          console.error('Error fetching dates from BigQuery:', error);
+          throw new Error('Failed to fetch dates from BigQuery');
+      }
+  }
+
+  // 日付計算
   private calculateDays(today: string, eventDate: string): number {
       return Math.floor((new Date(today).getTime() - new Date(eventDate).getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  // 設定したステータスがどのenentDateに当てはまるのか
+  private setStatus(today: string): void {
+      this.status_booked = this.isStatusActive(this.booked_date, today);
+      this.status_checkin = this.isStatusActive(this.checkin_date, today);
+      this.status_checkout = this.isStatusActive(this.checkout_date, today);
+  }
+
+  // 今日の日付と比較して、ステータスを設定
+  private isStatusActive(eventDate: string, today: string): boolean {
+      return new Date(eventDate).getTime() <= new Date(today).getTime();
+  }
+
+  // GuestJourneyPhaseのデータをBigQueryから取得し、プロパティを設定する静的メソッド
+  static async fetchGuestJourneyData(confirmation_code: string, bigQueryUtility: BigQueryUtility): Promise<GuestJourneyPhase> {
+      const guestJourney = new GuestJourneyPhase(confirmation_code);
+
+      // BigQueryからデータを取得
+      await guestJourney.getDatesFromBQ(confirmation_code, bigQueryUtility);
+
+      // 日付差やステータスを設定
+      guestJourney.days_from_booking = guestJourney.calculateDays(guestJourney.today_date, guestJourney.booked_date);
+      guestJourney.days_from_checkin = guestJourney.calculateDays(guestJourney.today_date, guestJourney.checkin_date);
+      guestJourney.days_from_checkout = guestJourney.calculateDays(guestJourney.today_date, guestJourney.checkout_date);
+      guestJourney.setStatus(guestJourney.today_date);
+
+      return guestJourney;
   }
 }
 

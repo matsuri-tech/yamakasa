@@ -1,11 +1,11 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
 import bodyParser from 'body-parser';
 import { GuestAttribute, GuestJourneyPhase, GuestJourneyEvent } from './services/guest';
 
 const app = express();
 app.use(bodyParser.json());
 
-app.post('/api/process', (req: Request, res: Response) => {
+app.post('/api/process', async (req, res) => {
     const symmetricKey = req.headers['matsuri-symmetric-key'] as string; 
     const planningKey = req.headers['from-planning-key'] as string; 
 
@@ -37,9 +37,43 @@ app.post('/api/process', (req: Request, res: Response) => {
         return res.status(400).json({ message: 'bad requestだにょデータ形式なおせよ' });
     }
 
-    const guest = new GuestAttribute(listing_id, nationality, confirmation_code);
-    const journey = new GuestJourneyPhase(new Date().toISOString(), booked_date, checkin_date, checkout_date, confirmation_code);
+    // 1. BigQueryUtility をインスタンス化
+    const bigQueryUtility = new BigQueryUtility();
 
+    try {
+        // 2. get_listing_id を呼び出して GuestAttribute インスタンスを取得
+        const guest = await GuestAttribute.get_listing_id(
+          confirmation_code,
+          bigQueryUtility,
+          nationality
+        );
+    
+        // 他のクラスも呼び出すなら、必要に応じてインスタンス化
+        const journey = await GuestJourneyPhase.fetchGuestJourneyData(
+          confirmation_code,
+          bigQueryUtility,
+          status_precheckin
+        );
+    
+        const event = await GuestJourneyEvent.fetchGuestJourneyEventData(
+          confirmation_code,
+          guest_review_submitted_at,
+          status_precheckin,
+          status_review,
+          bigQueryUtility
+        );
+    
+        // 結果をレスポンスに含めるなど
+        res.status(200).json({
+          guest: guest,
+          journey,
+          event
+        });
+      } catch (error) {
+        res.status(500).json({ message: "BigQueryエラー", error });
+      }
+
+    /*
     if (symmetricKey) {
         return res.status(200).json({
             template_id: 'checkInV2',
@@ -53,6 +87,7 @@ app.post('/api/process', (req: Request, res: Response) => {
             "3H": false
         });
     }
+        */
 
     return res.status(500).json({ message: 'ごめんちょ' });
 });

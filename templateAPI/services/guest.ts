@@ -1,11 +1,10 @@
 // ゲスト情報を取得するクラス
 export class GuestAttribute {
-  listing_id: string;
-  nationality: string[];  // nationalityはリクエストボディから受け取る
+  listing_id: string | null = null;
+  nationality: string[];
   confirmation_code: string;
 
-  constructor(listing_id: string, nationality: string[], confirmation_code: string) {
-    this.listing_id = listing_id;
+  constructor(nationality: string[], confirmation_code: string) {
     this.nationality = nationality;
     this.confirmation_code = confirmation_code;
   }
@@ -53,8 +52,13 @@ export class GuestAttribute {
       // nationality を加工して反映
       const processedNationality = GuestAttribute.resolveNationality(nationality);
 
-      // 取得したlisting_idとprocessedNationalityでGuestAttributeインスタンスを作成
-      return new GuestAttribute(listing_id, processedNationality, confirmation_code);
+      // まずコンストラクタで GuestAttribute を作る
+      const guest = new GuestAttribute(processedNationality, confirmation_code);
+
+      // 後から代入
+      guest.listing_id = listing_id;
+
+      return guest;
     } catch (error) {
       console.error('Error fetching data from BigQuery:', error);
       throw new Error('Failed to fetch data from BigQuery');

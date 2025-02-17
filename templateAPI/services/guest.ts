@@ -277,7 +277,7 @@ export class GuestJourneyEvent {
       LEFT OUTER JOIN m2m-core.m2m_core_prod.reservation AS b
       ON a.reservation_id = b.id_on_ota
       WHERE b.ota_type = 'Airbnb'
-        AND b.code = @confirmation_code
+        AND b.id_on_ota = @confirmation_code
     `;
     
     const result = await bigQueryUtility.selectFromBQ(query, { confirmation_code: this.confirmation_code });

@@ -63,6 +63,10 @@ app.post('/api/process', async (req, res) => {
           status_review,
           bigQueryUtility
         );
+
+        console.log("Guest:", guest);
+        console.log("Journey:", journey);
+        console.log("Event:", event);
     
         // 結果をレスポンスに含めるなど
         res.status(200).json({

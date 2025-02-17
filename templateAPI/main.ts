@@ -1,6 +1,7 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import { GuestAttribute, GuestJourneyPhase, GuestJourneyEvent } from './services/guest';
+import { BigQueryUtility } from './services/utility'
 
 const app = express();
 app.use(bodyParser.json());

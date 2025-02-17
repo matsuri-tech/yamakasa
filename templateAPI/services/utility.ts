@@ -1,6 +1,3 @@
-//insertToBQメソッドにはdatasetId, tableId, 挿入するデータ（object[] 型）が必要
-//selectFromBQメソッドにはクエリが必要
-
 import { BigQuery } from '@google-cloud/bigquery';
 
 export class BigQueryUtility {
@@ -27,10 +24,16 @@ export class BigQueryUtility {
         }
     }
 
-    // 任意のクエリを実行してデータを取得するメソッド
-    async selectFromBQ(query: string): Promise<any[]> {
+    // パラメータ付きクエリを実行してデータを取得するメソッド
+    async selectFromBQ(query: string, params?: Record<string, any>): Promise<any[]> {
         try {
-            const [rows] = await this.bigQuery.query(query);
+            // createQueryJob に params を渡すと、クエリ中の '@paramName' にバインドされる
+            const [job] = await this.bigQuery.createQueryJob({
+                query,
+                params,
+            });
+            // クエリジョブが完了してから結果を取得
+            const [rows] = await job.getQueryResults();
             return rows;
         } catch (error) {
             console.error('Error querying BigQuery:', error);

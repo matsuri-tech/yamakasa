@@ -13,9 +13,26 @@ app.post('/api/process', (req: Request, res: Response) => {
         return res.status(401).json({ message: 'キーが違うよorないよ' });
     }
 
-    const body = req.body as { confirmation_code: string; nationality: string[]; listing_id: string; booked_date: string; checkin_date: string; checkout_date: string; };
-    const { confirmation_code, nationality, listing_id, booked_date, checkin_date, checkout_date } = body;
+    const body = req.body as { 
+        confirmation_code: string;
+        guest_review_submitted: boolean;
+        guest_review_submitted_at: string | null;
+        pre_checked_in: boolean;
+        nationalities: string[];
+    };
+    const { 
+        confirmation_code,
+        guest_review_submitted, 
+        guest_review_submitted_at,
+        pre_checked_in,
+        nationalities,
+    } = body;
     
+    // 新しい変数名に代入しておく
+    const status_review = guest_review_submitted;
+    const status_precheckin = pre_checked_in;
+    const nationality = nationalities;
+
     if (!confirmation_code) {
         return res.status(400).json({ message: 'bad requestだにょデータ形式なおせよ' });
     }

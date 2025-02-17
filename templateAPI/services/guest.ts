@@ -93,13 +93,15 @@ export class GuestJourneyPhase {
   }
 
   // SQLで日付を取得するメソッド
-  private async getDatesFromBQ(confirmation_code: string, bigQueryUtility: BigQueryUtility): Promise<void> {
+  private async getDatesFromBQ(
+    confirmation_code: string, 
+    bigQueryUtility: BigQueryUtility
+  ): Promise<void> {
     const query = `
       SELECT bookedAt, checkin, checkout
       FROM m2m-core.dx_m2m_core.reservations
       WHERE reservationCode = @confirmation_code
     `;
-
     const rows = await bigQueryUtility.selectFromBQ(query, { confirmation_code });
     if (rows.length > 0) {
       this.booked_date = rows[0].bookedAt;
@@ -111,15 +113,20 @@ export class GuestJourneyPhase {
   // 今日の日付から何日離れているかの計算
   private calculateDays(today: string, eventDate: string | null): number | null {
     if (eventDate === null) {
-        return null;  // eventDate が null の場合は null を返す
+      return null; // eventDate が null の場合は null を返す
     }
-    return Math.floor((new Date(today).getTime() - new Date(eventDate).getTime()) / (1000 * 60 * 60 * 24));
+    return Math.floor(
+      (new Date(today).getTime() - new Date(eventDate).getTime()) / (1000 * 60 * 60 * 24)
+    );
   }
 
   // isStatusActiveで判定したT/Fをどのステータスに当てはめるか
-  private setStatus(today: string): void {
+  private setStatus(today: string, status_precheckin: boolean): void {
     this.status_booked = this.isStatusActive(this.booked_date!, today);
-    this.status_checkin = this.isStatusActive(this.checkin_date!, today);
+
+    // status_checkin は「isStatusActiveがtrue かつ status_precheckinがtrue」ならtrue
+    this.status_checkin = this.isStatusActive(this.checkin_date!, today) && status_precheckin;
+
     this.status_checkout = this.isStatusActive(this.checkout_date!, today);
   }
 
@@ -129,15 +136,30 @@ export class GuestJourneyPhase {
   }
 
   // GuestJourneyPhaseのデータをBigQueryから取得し、プロパティを設定する静的メソッド
-  static async fetchGuestJourneyData(confirmation_code: string, bigQueryUtility: BigQueryUtility): Promise<GuestJourneyPhase> {
+  static async fetchGuestJourneyData(
+    confirmation_code: string,
+    bigQueryUtility: BigQueryUtility,
+    status_precheckin: boolean
+  ): Promise<GuestJourneyPhase> {
     const guestJourney = new GuestJourneyPhase(confirmation_code);
 
     await guestJourney.getDatesFromBQ(confirmation_code, bigQueryUtility);
 
-    guestJourney.days_from_booking = guestJourney.calculateDays(guestJourney.today_date, guestJourney.booked_date!);
-    guestJourney.days_from_checkin = guestJourney.calculateDays(guestJourney.today_date, guestJourney.checkin_date!);
-    guestJourney.days_from_checkout = guestJourney.calculateDays(guestJourney.today_date, guestJourney.checkout_date!);
-    guestJourney.setStatus(guestJourney.today_date);
+    guestJourney.days_from_booking = guestJourney.calculateDays(
+      guestJourney.today_date, 
+      guestJourney.booked_date!
+    );
+    guestJourney.days_from_checkin = guestJourney.calculateDays(
+      guestJourney.today_date, 
+      guestJourney.checkin_date!
+    );
+    guestJourney.days_from_checkout = guestJourney.calculateDays(
+      guestJourney.today_date, 
+      guestJourney.checkout_date!
+    );
+
+    // setStatus呼び出し時に status_precheckin を渡して論理を反映
+    guestJourney.setStatus(guestJourney.today_date, status_precheckin);
 
     return guestJourney;
   }

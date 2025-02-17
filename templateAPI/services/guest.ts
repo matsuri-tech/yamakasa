@@ -10,8 +10,33 @@ export class GuestAttribute {
     this.confirmation_code = confirmation_code;
   }
 
+  // nationality を選択するためのメソッド
+  static resolveNationality(nationalities: string[]): string[] {
+    // もし何も渡されていない場合は空配列を返す
+    if (!nationalities || nationalities.length === 0) {
+      return [];
+    }
+
+    // 1つだけの場合はそのまま返す
+    if (nationalities.length === 1) {
+      return nationalities;
+    }
+
+    // 複数ある場合は"Japan"が含まれていれば ["Japan"] のみ返す
+    if (nationalities.includes("Japan")) {
+      return ["Japan"];
+    }
+
+    // "Japan"がない場合は先頭の要素のみを返す
+    return [nationalities[0]];
+  }
+
   // BigQueryUtility を使ってデータを取得する静的メソッド
-  static async get_listing_id(confirmation_code: string, bigQueryUtility: BigQueryUtility): Promise<GuestAttribute> {
+  static async get_listing_id(
+    confirmation_code: string, 
+    bigQueryUtility: BigQueryUtility,
+    nationality: string[]
+  ): Promise<GuestAttribute> {
     const listingIdQuery = `
       SELECT b.core_listing_id
       FROM m2m-core.m2m_checkin_prod.reservation AS a
@@ -25,8 +50,11 @@ export class GuestAttribute {
       const listingIdRows = await bigQueryUtility.selectFromBQ(listingIdQuery, { confirmation_code });
       const listing_id = listingIdRows.length > 0 ? listingIdRows[0].core_listing_id : null;
 
-      // 取得したlisting_idとリクエストボディからのnationalityでGuestAttributeインスタンスを作成
-      return new GuestAttribute(listing_id, [], confirmation_code);  // nationalityはリクエストボディから渡されるので空の配列を使っても問題なし
+      // nationality を加工して反映
+      const processedNationality = GuestAttribute.resolveNationality(nationality);
+
+      // 取得したlisting_idとprocessedNationalityでGuestAttributeインスタンスを作成
+      return new GuestAttribute(listing_id, processedNationality, confirmation_code);
     } catch (error) {
       console.error('Error fetching data from BigQuery:', error);
       throw new Error('Failed to fetch data from BigQuery');
@@ -49,7 +77,7 @@ export class GuestJourneyPhase {
   confirmation_code: string;
 
   constructor(confirmation_code: string) {
-    this.today_date = new Date().toISOString().split('T')[0]; // 今日の日付
+    this.today_date = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
     this.confirmation_code = confirmation_code;
 
     // 後から取得する値をnullで初期化
@@ -131,14 +159,16 @@ export class GuestJourneyEvent {
     status_precheckin: boolean,
     status_review: boolean,
     guest_review_submitted_at: string | null,
-    today_date: string,
     confirmation_code: string,
     trouble_genre: string[] = []
   ) {
     this.trouble_genre = trouble_genre;
     this.status_precheckin = status_precheckin;
     this.status_review = status_review;
-    this.today_date = today_date;
+    
+    // ここで日本時間のYYYY-MM-DDを生成
+    this.today_date = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+    
     this.confirmation_code = confirmation_code;
     this.guest_review_submitted_at = guest_review_submitted_at; 
 
@@ -154,14 +184,12 @@ export class GuestJourneyEvent {
     guest_review_submitted_at: string | null,
     status_precheckin: boolean,
     status_review: boolean,
-    today_date: string,
     bigQueryUtility: BigQueryUtility
   ): Promise<GuestJourneyEvent> {
     const guestJourneyEvent = new GuestJourneyEvent(
       status_precheckin,
       status_review,
       guest_review_submitted_at,
-      today_date,
       confirmation_code
     );
 
@@ -228,12 +256,16 @@ export class GuestJourneyEvent {
     return result.length > 0;
   }
 
-  // 今日の日付と指定された日付との差を計算する
+  // 今日の日付と指定された日付との差を計算する（時刻は無視して日付だけにする）
   private calculateDaysFromDate(eventDate: string | null): number | null {
     if (!eventDate) {
-        return null; // eventDate が null または undefined の場合は null を返す
+      return null;
     }
-    return Math.floor((new Date(this.today_date).getTime() - new Date(eventDate).getTime()) / (1000 * 60 * 60 * 24));
-  }
 
+    const eventDateOnly = eventDate.split(' ')[0];
+
+    return Math.floor(
+      (new Date(this.today_date).getTime() - new Date(eventDateOnly).getTime()) / (1000 * 60 * 60 * 24)
+    );
+  }
 }

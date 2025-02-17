@@ -1,3 +1,5 @@
+import { BigQueryUtility } from './utility'
+
 // ゲスト情報を取得するクラス
 export class GuestAttribute {
   listing_id: string | null = null;

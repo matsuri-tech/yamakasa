@@ -92,9 +92,10 @@ app.post('/api/process', async (req, res) => {
             "3H": false
         });
     }
-        */
+        
 
     return res.status(500).json({ message: 'ごめんちょ' });
+    */
 });
 
 const PORT = process.env.PORT || 3000;

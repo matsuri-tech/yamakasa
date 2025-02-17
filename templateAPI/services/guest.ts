@@ -285,15 +285,23 @@ export class GuestJourneyEvent {
   }
 
   // 今日の日付と指定された日付との差を計算する（時刻は無視して日付だけにする）
-  private calculateDaysFromDate(eventDate: string | null): number | null {
+  private calculateDaysFromDate(eventDate: string | Date | null): number | null {
     if (!eventDate) {
       return null;
     }
-
+  
+    // もし 'Date' 型なら ISO文字列に変換して文字列化
+    if (eventDate instanceof Date) {
+      eventDate = eventDate.toISOString(); // 例: "2025-02-17T23:59:00.000Z"
+    }
+  
+    // ここで eventDate は string 型になっている
     const eventDateOnly = eventDate.split(' ')[0];
-
+  
     return Math.floor(
-      (new Date(this.today_date).getTime() - new Date(eventDateOnly).getTime()) / (1000 * 60 * 60 * 24)
+      (new Date(this.today_date).getTime() - new Date(eventDateOnly).getTime()) /
+      (1000 * 60 * 60 * 24)
     );
   }
+  
 }

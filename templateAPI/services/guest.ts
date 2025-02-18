@@ -266,7 +266,27 @@ export class GuestJourneyEvent {
     `;
     
     const result = await bigQueryUtility.selectFromBQ(query, { confirmation_code: this.confirmation_code });
-    return result.length > 0 ? result[0].arrived_at : null;
+  
+    if (result.length === 0) {
+      return null;
+    }
+  
+    let arrivedAt = result[0].arrived_at;
+    console.log('BigQuery arrivedAt (raw):', arrivedAt);
+  
+    // 1) ここで BigQueryDate オブジェクトなら、arrivedAt.value から文字列を取得する
+    //    BigQueryDate 以外の型の可能性もあるので typeof や instanceof で判定
+    if (arrivedAt && typeof arrivedAt.value === 'string') {
+      arrivedAt = arrivedAt.value; // '2025-01-31' のような文字列
+    } else if (arrivedAt instanceof Date) {
+      arrivedAt = arrivedAt.toISOString();
+    } else if (typeof arrivedAt !== 'string') {
+      // 最悪の場合は toString() で文字列化
+      arrivedAt = String(arrivedAt);
+    }
+  
+    console.log('BigQuery arrivedAt (converted):', arrivedAt); // ここで '2025-01-31' などの純粋な文字列に
+    return arrivedAt;
   }
 
   // SQLでcleaning_delayを確認する
@@ -286,6 +306,7 @@ export class GuestJourneyEvent {
 
   // 今日の日付と指定された日付との差を計算する（時刻は無視して日付だけにする）
   private calculateDaysFromDate(eventDate: string | Date | null): number | null {
+    console.log('eventDate in calculateDaysFromDate:', eventDate);
     if (!eventDate) {
       return null;
     }

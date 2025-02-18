@@ -75,8 +75,17 @@ export class SQL {
       }
   
       return `
-          SELECT B.template_id, B.content, A.condition_id, A.key, A.operator, A.value FROM 
-          \`m2m-core.su_wo.test_condition_table\` AS A
+          SELECT 
+          B.template_id, 
+          B.content, 
+          A.condition_id, 
+          A.key, 
+          A.operator, 
+          A.value,
+          B.priority,
+          B.message_posting_time,
+          B.is_force_send 
+          FROM \`m2m-core.su_wo.test_condition_table\` AS A
           LEFT OUTER JOIN \`${this.table_name}\` AS B 
           ON A.template_id = B.template_id
           ${whereClause}
@@ -97,40 +106,44 @@ export class SQL {
     }
 
     // SQLの結果をtemplateConditions形式に変換
-    async transformToTemplateConditions(): Promise<{ [templateId: string]: { content: string, conditions: { condition_id: number, key: string, operator: string, value: string | boolean | null }[] } }> {
-        try {
-            const rows = await this.filter_template_by_SQL();
-            
-            // 結果をtemplateConditions形式に変換
-            const templateConditions: { [templateId: string]: { content: string, conditions: { condition_id: number, key: string, operator: string, value: string | boolean | null }[] } } = {};
-
-            rows.forEach(row => {
-                const { template_id, content, condition_id, key, operator, value } = row;
-
-                // template_idがまだtemplateConditionsにない場合、初期化
-                if (!templateConditions[template_id]) {
-                    templateConditions[template_id] = {
-                        content: content,
-                        conditions: []
-                    };
-                }
-
-                // conditionsリストに新しい条件を追加
-                templateConditions[template_id].conditions.push({
-                    condition_id,
-                    key,
-                    operator,
-                    value
-                });
-            });
-
-            return templateConditions;
-        } catch (error) {
-            console.error("Error transforming SQL result to templateConditions:", error);
-            throw new Error("Failed to transform data");
-        }
-    }
+    async transformToTemplateConditions(): Promise<{ [templateId: string]: { content: string, priority: string | number, message_posting_time: string, is_force_send: boolean, conditions: { condition_id: number, key: string, operator: string, value: string | boolean | null }[] } }> {
+      try {
+          const rows = await this.filter_template_by_SQL();
+          
+          // 結果をtemplateConditions形式に変換
+          const templateConditions: { [templateId: string]: { content: string, priority: string | number, message_posting_time: string, is_force_send: boolean, conditions: { condition_id: number, key: string, operator: string, value: string | boolean | null }[] } } = {};
+  
+          rows.forEach(row => {
+              const { template_id, content, condition_id, key, operator, value, priority, message_posting_time, is_force_send } = row;
+  
+              // template_idがまだtemplateConditionsにない場合、初期化
+              if (!templateConditions[template_id]) {
+                  templateConditions[template_id] = {
+                      content: content,
+                      priority: priority,  // priorityを追加
+                      message_posting_time: message_posting_time,  // message_posting_timeを追加
+                      is_force_send: is_force_send,  // is_force_sendを追加
+                      conditions: []
+                  };
+              }
+  
+              // conditionsリストに新しい条件を追加
+              templateConditions[template_id].conditions.push({
+                  condition_id,
+                  key,
+                  operator,
+                  value
+              });
+          });
+  
+          return templateConditions;
+      } catch (error) {
+          console.error("Error transforming SQL result to templateConditions:", error);
+          throw new Error("Failed to transform data");
+      }
+  }
 }
+  
 
 
 /*
@@ -248,5 +261,42 @@ export class FilterTemplateByCode {
 
     return templateResults;
   }
+
+
+compareConditionsforpalnner(guestInformation: any[], templateConditions: { [templateId: string]: { content: string, priority: number, message_posting_time: string, conditions: { key: string, operator: string, value: any }[] } }) {
+  const templateResults: { confirmation_codes: string, priority: number, message_posting_time: string }[] = [];
+
+  for (const templateId in templateConditions) {
+      const template = templateConditions[templateId];
+      let allConditionsMatch = true;
+
+      // 各条件を比較
+      for (const condition of template.conditions) {
+          const matchingCondition = guestInformation.find(guest => {
+              // key, operator, valueがすべて一致するかを比較
+              return guest.key === condition.key &&
+                  guest.operator === condition.operator &&
+                  JSON.stringify(guest.value) === JSON.stringify(condition.value);
+          });
+
+          // 一致する条件がなければ、判定をfalseに
+          if (!matchingCondition) {
+              allConditionsMatch = false;
+              break;  // 条件が一致しない場合は次のtemplate_idへ
+          }
+      }
+
+      // すべての条件が一致した場合、そのtemplate_idとcontentを返す
+      if (allConditionsMatch) {
+          templateResults.push({
+              confirmation_codes: templateId,  // template_idを予約コードとして使用
+              priority: template.priority,  // priorityを返す
+              message_posting_time: template.message_posting_time  // message_posting_timeを返す
+          });
+      }
+  }
+
+  return templateResults;
 }
 
+}

@@ -173,7 +173,7 @@ export class GuestJourneyPhase {
 
 //トラブル、レビュー、清掃遅延、事前予約の情報を取得するクラス
 export class GuestJourneyEvent {
-  trouble_genre: string[];
+  trouble_genre_user: string[];
   status_precheckin: boolean;
   days_from_precheckin: number | null;
   status_review: boolean;
@@ -181,16 +181,16 @@ export class GuestJourneyEvent {
   cleaning_delay: boolean;
   today_date: string;
   confirmation_code: string;
-  guest_review_submitted_at: string | null; // このプロパティを追加
+  guest_review_submitted_at: string | null;
 
   constructor(
     status_precheckin: boolean,
     status_review: boolean,
     guest_review_submitted_at: string | null,
     confirmation_code: string,
-    trouble_genre: string[] = []
+    trouble_genre_user: string[] = []
   ) {
-    this.trouble_genre = trouble_genre;
+    this.trouble_genre_user = trouble_genre_user;
     this.status_precheckin = status_precheckin;
     this.status_review = status_review;
     
@@ -236,11 +236,42 @@ export class GuestJourneyEvent {
       // cleaning_delayをSQLから取得
       guestJourneyEvent.cleaning_delay = await guestJourneyEvent.checkCleaningDelay(bigQueryUtility);
 
+      // トラブルのジャンル・ユーザー情報を取得
+      await guestJourneyEvent.fetchTroubleGenreUserData(bigQueryUtility);
+
     } catch (error) {
       console.error('Error initializing data:', error);
     }
 
     return guestJourneyEvent;
+  }
+
+  //トラブルのジャンルとユーザーをSQLで取得
+  public async fetchTroubleGenreUserData(bigQueryUtility: BigQueryUtility): Promise<void> {
+    try {
+      const troubleQuery = `
+        SELECT user_name, genre
+        FROM m2m-core.su_wo.trouble_report_form
+        WHERE complainant = @confirmation_code
+      `;
+      const troubleRows = await bigQueryUtility.selectFromBQ(troubleQuery, {
+        confirmation_code: this.confirmation_code
+      });
+
+      if (troubleRows.length > 0) {
+        // 例: troubleRows = [{ user_name: 'あ', genre: 'A' }, { user_name: 'い', genre: 'B' }]
+        const genres = troubleRows.map(row => row.genre);        // => ['A', 'B']
+        const users  = troubleRows.map(row => row.user_name);    // => ['あ', 'い']
+
+        // "{genre: A, B}" と "{user: あ, い}" の2要素を配列化し、this.trouble_genre_userに格納
+        this.trouble_genre_user = [
+          `{genre: ${genres.join(', ')}}`,
+          `{user: ${users.join(', ')}}`
+        ];
+      }
+    } catch (error) {
+      console.error('Error fetching trouble genre/user data:', error);
+    }
   }
 
   // SQLでarrived_atを取得する

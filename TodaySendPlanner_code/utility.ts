@@ -40,4 +40,19 @@ export class BigQueryUtility {
             throw new Error('Query operation failed');
         }
     }
+
+    //指定したテーブルを空にする（TRUNCATE TABLE）メソッド
+    async truncateTable(datasetId: string, tableId: string): Promise<void> {
+        const sql = `TRUNCATE TABLE \`${datasetId}.${tableId}\``;
+        console.log(`Truncating table: ${datasetId}.${tableId}`);
+        
+        try {
+            // selectFromBQ を再利用し、クエリとして TRUNCATE を実行
+            await this.selectFromBQ(sql);
+            console.log(`Table truncated: ${datasetId}.${tableId}`);
+        } catch (error) {
+            console.error('Error truncating table:', error);
+            throw new Error('Truncate operation failed');
+        }
+    }
 }

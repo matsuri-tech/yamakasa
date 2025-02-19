@@ -7,12 +7,29 @@ export class AirbnbReservationService {
     this.bigQueryUtility = bigQueryUtility;
   }
 
-  //test_condition_table から日数条件を取得し、キーごとにまとめて返却する
+  // 0) テーブル m2m-core.su_wo.confirmation_codes_send_to_queingAPI の中身を削除するメソッド
+  public async clearConfirmationCodesSendToQueingAPI(): Promise<void> {
+    // TRUNCATE TABLE でテーブル内容を空にする
+    const sql = `
+    DELETE FROM \`m2m-core.su_wo.confirmation_codes_send_to_queingAPI\`
+    WHERE TRUE
+    `;
+
+    try {
+      await this.bigQueryUtility.selectFromBQ(sql);
+      console.log('Table truncated: m2m-core.su_wo.confirmation_codes_send_to_queingAPI');
+    } catch (error) {
+      console.error('Error truncating table:', error);
+      throw new Error('Truncate operation failed');
+    }
+  }
+
+  // 1) test_condition_table から日数条件を取得
   public async getDaysConditions(): Promise<{ [key: string]: number[] }> {
     const sql = `
       SELECT 
         condition_key,
-        ARRAY_AGG(DISTINCT condition_value) AS distinct_values
+        ARRAY_AGG(DISTINCT CAST(condition_value AS INT64)) AS distinct_values
       FROM \`m2m-core.su_wo.test_condition_table\`
       WHERE condition_key IN (
         'days_from_book', 
@@ -23,28 +40,24 @@ export class AirbnbReservationService {
       )
       GROUP BY condition_key
     `;
-
     const rows = await this.bigQueryUtility.selectFromBQ(sql);
 
-    //row.distinct_values を利用し、まとめていく
     const conditionMap: { [key: string]: number[] } = {};
     for (const row of rows) {
       const k = row.condition_key;
-      const distinctVals = row.distinct_values; // ARRAY_AGG(DISTINCT ...)の結果
-      conditionMap[k] = distinctVals;
+      const vals: number[] = row.distinct_values; 
+      conditionMap[k] = vals;
     }
-
     return conditionMap;
   }
 
-  //getDaysConditionsメソッドで取得した日数を試用して、Airbnb の予約情報を取得する
+  // 2) getDaysConditions() で取得した日数を使って Airbnb の予約情報を取得する
   public async getAirbnbReservations(
     conditionValues: { [key: string]: number[] }
   ): Promise<any[]> {
-    // メインのクエリ作成
     const sql = `
       SELECT 
-        aa.confirmaton_code,
+        aa.confirmation_code,
         aa.nationality,
         aa.arrived_at AS precheckin_date,
         CASE WHEN aa.arrived_at IS NOT NULL THEN TRUE ELSE FALSE END AS pre_checked_in,
@@ -60,7 +73,7 @@ export class AirbnbReservationService {
           SELECT 
             DATE(b.arrived_at) AS arrived_at,
             ROW_NUMBER() OVER (PARTITION BY a.id ORDER BY b.arrived_at ASC) AS row_num,
-            a.code AS confirmaton_code,
+            a.code AS confirmation_code,
             b.nationality
           FROM \`m2m-core.m2m_checkin_prod.reservation\` AS a
           LEFT OUTER JOIN \`m2m-core.m2m_checkin_prod.guest\` AS b
@@ -69,10 +82,10 @@ export class AirbnbReservationService {
       ) AS aa
 
       LEFT OUTER JOIN \`m2m-core.dx_m2m_core.reservations\` AS bb
-        ON aa.confirmaton_code = bb.reservationCode
+        ON aa.confirmation_code = bb.reservationCode
 
       LEFT OUTER JOIN \`m2m-core.m2m_systems.air_reservations\` AS a
-        ON aa.confirmaton_code = a.confirmation_code
+        ON aa.confirmation_code = a.confirmation_code
 
       LEFT OUTER JOIN \`m2m-core.m2m_systems.air_official_reviews\` AS b
         ON CAST(a.id AS STRING) = CAST(b.air_reservation_id AS STRING)
@@ -90,7 +103,6 @@ export class AirbnbReservationService {
         )
     `;
 
-    // パラメータ作成
     const params = {
       days_from_precheckin: conditionValues['days_from_precheckin'] ?? [],
       days_from_book: conditionValues['days_from_book'] ?? [],
@@ -99,7 +111,55 @@ export class AirbnbReservationService {
       days_from_review: conditionValues['days_from_review'] ?? [],
     };
 
-    // 実行して結果を返却
     return this.bigQueryUtility.selectFromBQ(sql, params);
+  }
+
+  // 3) 上記の結果を m2m-core.su_wo.confirmation_codes_send_to_queingAPI にインサートする
+  public async insertReservationsToQueueingAPI(
+    reservations: any[]
+  ): Promise<void> {
+    const datasetId = 'su_wo';
+    const tableId = 'confirmation_codes_send_to_queingAPI';
+
+    // ここで、PowerShellの出力で precheckin_date が @{value=2025-02-03} となっている場合があるので
+    // その "value" プロパティを取り出して文字列化しておく
+    const rowsToInsert = reservations.map(row => {
+      return {
+        confirmation_code: row.confirmation_code,
+        nationality: row.nationality,
+        // precheckin_date がオブジェクト { value: '2025-xx-xx' } の場合を考慮
+        precheckin_date: 
+          typeof row.precheckin_date === 'object' && row.precheckin_date !== null 
+            ? row.precheckin_date.value 
+            : row.precheckin_date,
+
+        pre_checked_in: row.pre_checked_in,
+        booked_date: row.booked_date,
+        checkin_date: row.checkin_date,
+        checkout_date: row.checkout_date,
+        guest_review_submitted: row.guest_review_submitted,
+        // guest_review_submitted_at が空文字のときは null として扱う例
+        guest_review_submitted_at: row.guest_review_submitted_at || null
+      };
+    });
+
+    try {
+      // ここを try/catch で囲む
+      await this.bigQueryUtility.insertToBQ(datasetId, tableId, rowsToInsert);
+      console.log(`Inserted ${rowsToInsert.length} rows into ${datasetId}.${tableId}`);
+    } catch (err: any) {
+      console.error('Error inserting data into BigQuery:', err);
+  
+      // PartialFailureError をキャッチして、行ごとのエラーを参照するサンプル
+      if (err.name === 'PartialFailureError') {
+        err.errors.forEach((f: any) => {
+          console.error('Failed row data:', f.row);
+          console.error('Error reasons:', f.errors);
+        });
+      }
+  
+      // エラーを再スロー（あるいは別のハンドリング）
+      throw err;
+    }
   }
 }

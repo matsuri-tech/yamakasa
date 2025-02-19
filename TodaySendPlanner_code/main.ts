@@ -6,21 +6,33 @@ import { AirbnbReservationService } from './select_confirmation_code';
 const app = express();
 app.use(bodyParser.json());
 
+// BigQueryUtility と AirbnbReservationService を準備
 const bigQueryUtility = new BigQueryUtility();
 const airbnbService = new AirbnbReservationService(bigQueryUtility);
 
+// 既存のエンドポイントに “テーブル削除” を追加
 app.post('/api/airbnb', async (req, res) => {
   try {
-    // A. 条件テーブル(test_condition_table)から条件を取得
+    // 0. まずテーブルの中身をクリア (clearConfirmationCodesSendToQueingAPI)
+    await airbnbService.clearConfirmationCodesSendToQueingAPI();
+
+    // A. 条件テーブル(test_condition_table) から条件を取得
     const conditionValues = await airbnbService.getDaysConditions();
 
     // B. 取得した条件を使って対象の予約情報を取得
     const results = await airbnbService.getAirbnbReservations(conditionValues);
 
-    // C. 結果をレスポンスとして返す
-    res.status(200).json(results);
+    // C. その結果を BigQuery のテーブルにインサート
+    await airbnbService.insertReservationsToQueueingAPI(results);
+
+    // D. 処理結果をレスポンスとして返す
+    res.status(200).json({
+      message: 'Successfully cleared table and inserted reservations into confirmation_codes_send_to_queingAPI',
+      rowCount: results.length,
+      data: results,
+    });
   } catch (error) {
-    console.error('Error while fetching Airbnb reservations:', error);
+    console.error('Error while clearing table or fetching/inserting Airbnb reservations:', error);
     res.status(500).json({ message: 'Internal Server Error', error });
   }
 });

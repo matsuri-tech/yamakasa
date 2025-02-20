@@ -6,33 +6,33 @@ import { AirbnbReservationService } from './select_confirmation_code';
 const app = express();
 app.use(bodyParser.json());
 
-// BigQueryUtility と AirbnbReservationService を準備
 const bigQueryUtility = new BigQueryUtility();
 const airbnbService = new AirbnbReservationService(bigQueryUtility);
 
-app.post('/api/airbnb', async (req, res) => {
+app.post('/api/trigger', async (req, res) => {
   try {
-    // 0. まずテーブルの中身をクリア (clearBigqueryContent)
+    // 1. BigQuery テーブルをクリア
     await airbnbService.clearBigqueryContent();
 
-    // A. 条件テーブル(test_condition_table) から条件を取得
+    // 2. 日数条件を取得
     const conditionValues = await airbnbService.getDaysConditions();
 
-    // B. 取得した条件を使って対象の予約情報を取得
-    const results = await airbnbService.getAirbnbReservations(conditionValues);
+    // 3. Airbnb の予約情報を取得
+    const reservations = await airbnbService.getAirbnbReservations(conditionValues);
 
-    // C. その結果を BigQuery のテーブルにインサート
-    await airbnbService.insertReservationsToBigquery(results);
+    // 4. 予約情報を BigQuery にインサート
+    await airbnbService.insertReservationsToBigquery(reservations);
 
-    // D. 処理結果をレスポンスとして返す
+    // 5. 別の Cloud Function をトリガー
+    await airbnbService.triggerAnotherCloudFunction();
+
+    // メッセージを処理した後のレスポンス
     res.status(200).json({
-      message: 'Successfully cleared table and inserted reservations into confirmation_codes_send_to_queingAPI',
-      rowCount: results.length,
-      data: results,
+      message: 'Successfully processed and triggered another Cloud Function.',
     });
   } catch (error) {
-    console.error('Error while clearing table or fetching/inserting Airbnb reservations:', error);
-    res.status(500).json({ message: 'Internal Server Error', error });
+    console.error('Error processing the request:', error);
+    res.status(500).json({ message: 'Error processing the request', error });
   }
 });
 

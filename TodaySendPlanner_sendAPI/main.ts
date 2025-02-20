@@ -11,26 +11,6 @@ const bigQueryUtility = new BigQueryUtility();
 const topicName = 'your-topic-name'; // Pub/Sub トピック名
 const sendAPI = new SendAPI(bigQueryUtility, topicName);
 
-app.post('/api/airbnb', async (req, res) => {
-  try {
-    // 1. BigQuery からデータを取得
-    const data = await sendAPI.fetchBigQueryData();
-
-    // 2. 取得したデータを 30 件ずつに分割し Pub/Sub に送信
-    await sendAPI.processAndPublish(data);
-
-    // 3. 処理結果をレスポンスとして返す
-    res.status(200).json({
-      message: 'Successfully fetched data and published to Pub/Sub.',
-      rowCount: data.length,
-      data: data,
-    });
-  } catch (error) {
-    console.error('Error while processing Airbnb reservations:', error);
-    res.status(500).json({ message: 'Internal Server Error', error });
-  }
-});
-
 // listenForMessages を app.post のハンドラーとして実装
 app.post('/api/pubsub', async (req, res) => {
   try {

@@ -1,6 +1,5 @@
-//これはgoogle schedulerで毎日夜中に起動する（多分）
-
 import { BigQueryUtility } from './utility';
+import axios from 'axios';
 
 export class AirbnbReservationService {
   private bigQueryUtility: BigQueryUtility;
@@ -17,7 +16,7 @@ export class AirbnbReservationService {
     // truncateTable メソッドを呼び出す
     await this.bigQueryUtility.truncateTable(datasetId, tableId);
   }
-  
+
   // 1) test_condition_table から日数条件を取得
   public async getDaysConditions(): Promise<{ [key: string]: number[] }> {
     const sql = `
@@ -55,14 +54,14 @@ export class AirbnbReservationService {
         aa.nationality,
         aa.arrived_at AS precheckin_date,
         CASE WHEN aa.arrived_at IS NOT NULL THEN TRUE ELSE FALSE END AS pre_checked_in,
-
+  
         bb.bookedAt AS booked_date,
         bb.checkin AS checkin_date,
         bb.checkout AS checkout_date,
-
+  
         CASE WHEN b.air_reservation_id IS NOT NULL THEN TRUE ELSE FALSE END AS guest_review_submitted,
         FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', b.submitted_at) AS guest_review_submitted_at
-
+  
       FROM (
           SELECT 
             DATE(b.arrived_at) AS arrived_at,
@@ -74,18 +73,18 @@ export class AirbnbReservationService {
             ON a.id = b.reservation_id
           WHERE a.stay_state = '1'
       ) AS aa
-
+  
       LEFT OUTER JOIN \`m2m-core.dx_m2m_core.reservations\` AS bb
         ON aa.confirmation_code = bb.reservationCode
-
+  
       LEFT OUTER JOIN \`m2m-core.m2m_systems.air_reservations\` AS a
         ON aa.confirmation_code = a.confirmation_code
-
+  
       LEFT OUTER JOIN \`m2m-core.m2m_systems.air_official_reviews\` AS b
         ON CAST(a.id AS STRING) = CAST(b.air_reservation_id AS STRING)
         AND b.submitted = TRUE
         AND b.is_host = FALSE
-
+  
       WHERE aa.row_num = 1
         AND bb.channel = 'Airbnb'
         AND (
@@ -115,45 +114,37 @@ export class AirbnbReservationService {
     const datasetId = 'su_wo';
     const tableId = 'confirmation_codes_send_to_queingAPI';
 
-    // ここで、PowerShellの出力で precheckin_date が @{value=2025-02-03} となっている場合があるので
-    // その "value" プロパティを取り出して文字列化しておく
     const rowsToInsert = reservations.map(row => {
       return {
         confirmation_code: row.confirmation_code,
         nationality: row.nationality,
-        // precheckin_date がオブジェクト { value: '2025-xx-xx' } の場合を考慮
-        precheckin_date: 
-          typeof row.precheckin_date === 'object' && row.precheckin_date !== null 
-            ? row.precheckin_date.value 
-            : row.precheckin_date,
-
+        precheckin_date: row.precheckin_date?.value ?? row.precheckin_date,
         pre_checked_in: row.pre_checked_in,
         booked_date: row.booked_date,
         checkin_date: row.checkin_date,
         checkout_date: row.checkout_date,
         guest_review_submitted: row.guest_review_submitted,
-        // guest_review_submitted_at が空文字のときは null として扱う例
         guest_review_submitted_at: row.guest_review_submitted_at || null
       };
     });
 
     try {
-      // ここを try/catch で囲む
       await this.bigQueryUtility.insertToBQ(datasetId, tableId, rowsToInsert);
       console.log(`Inserted ${rowsToInsert.length} rows into ${datasetId}.${tableId}`);
     } catch (err: any) {
       console.error('Error inserting data into BigQuery:', err);
-  
-      // PartialFailureError をキャッチして、行ごとのエラーを参照するサンプル
-      if (err.name === 'PartialFailureError') {
-        err.errors.forEach((f: any) => {
-          console.error('Failed row data:', f.row);
-          console.error('Error reasons:', f.errors);
-        });
-      }
-  
-      // エラーを再スロー（あるいは別のハンドリング）
       throw err;
+    }
+  }
+
+  // 4) 別の Cloud Function にリクエストを送信する
+  public async triggerAnotherCloudFunction(): Promise<void> {
+    try {
+      await axios.post('https://your-cloud-function-endpoint.example.com');
+      console.log('Triggered another Cloud Function');
+    } catch (error) {
+      console.error('Error triggering another Cloud Function:', error);
+      throw error;
     }
   }
 }

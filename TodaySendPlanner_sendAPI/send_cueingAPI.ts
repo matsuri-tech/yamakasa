@@ -41,13 +41,13 @@ export class SendAPI {
       const datasetId = 'su_wo';
       const tableId = 'today_send_planner_log';
 
-      const rowsToInsert = [{
+      const rowsToInsert = [ {
         template_id: response.template_id,
         confirmation_codes: response.confirmation_codes,
         priority: response.priority,
         message_posting_time: response.message_posting_time,
         is_force_send: response.is_force_send
-      }];
+      } ];
 
       await this.bigQueryUtility.insertToBQ(datasetId, tableId, rowsToInsert);
       console.log(`Inserted data into ${datasetId}.${tableId}`);
@@ -83,21 +83,6 @@ export class SendAPI {
       return rows;
     } catch (error) {
       console.error('Error fetching data from BigQuery:', error);
-      throw error;
-    }
-  }
-
-  // ⑤ Pub/Sub にデータを送信するメソッド
-  async processAndPublish(data: any[]): Promise<void> {
-    try {
-      for (let i = 0; i < data.length; i++) {
-        const chunk = data[i];
-        const dataBuffer = Buffer.from(JSON.stringify(chunk)); // Buffer を使ってデータを送信
-        const messageId = await this.pubsub.topic(this.topicName).publish(dataBuffer);
-        console.log(`Published message with ID: ${messageId}`);
-      }
-    } catch (error) {
-      console.error('Error publishing to Pub/Sub:', error);
       throw error;
     }
   }

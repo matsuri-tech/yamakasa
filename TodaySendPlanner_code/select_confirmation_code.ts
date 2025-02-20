@@ -1,3 +1,5 @@
+//これはgoogle schedulerで毎日夜中に起動する（多分）
+
 import { BigQueryUtility } from './utility';
 
 export class AirbnbReservationService {
@@ -8,22 +10,14 @@ export class AirbnbReservationService {
   }
 
   // 0) テーブル m2m-core.su_wo.confirmation_codes_send_to_queingAPI の中身を削除するメソッド
-  public async clearConfirmationCodesSendToQueingAPI(): Promise<void> {
-    // TRUNCATE TABLE でテーブル内容を空にする
-    const sql = `
-    DELETE FROM \`m2m-core.su_wo.confirmation_codes_send_to_queingAPI\`
-    WHERE TRUE
-    `;
-
-    try {
-      await this.bigQueryUtility.selectFromBQ(sql);
-      console.log('Table truncated: m2m-core.su_wo.confirmation_codes_send_to_queingAPI');
-    } catch (error) {
-      console.error('Error truncating table:', error);
-      throw new Error('Truncate operation failed');
-    }
+  public async clearBigqueryContent(): Promise<void> {
+    const datasetId = 'su_wo';
+    const tableId = 'confirmation_codes_send_to_queingAPI';
+  
+    // truncateTable メソッドを呼び出す
+    await this.bigQueryUtility.truncateTable(datasetId, tableId);
   }
-
+  
   // 1) test_condition_table から日数条件を取得
   public async getDaysConditions(): Promise<{ [key: string]: number[] }> {
     const sql = `
@@ -115,7 +109,7 @@ export class AirbnbReservationService {
   }
 
   // 3) 上記の結果を m2m-core.su_wo.confirmation_codes_send_to_queingAPI にインサートする
-  public async insertReservationsToQueueingAPI(
+  public async insertReservationsToBigquery(
     reservations: any[]
   ): Promise<void> {
     const datasetId = 'su_wo';

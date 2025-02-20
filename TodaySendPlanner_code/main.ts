@@ -10,11 +10,10 @@ app.use(bodyParser.json());
 const bigQueryUtility = new BigQueryUtility();
 const airbnbService = new AirbnbReservationService(bigQueryUtility);
 
-// 既存のエンドポイントに “テーブル削除” を追加
 app.post('/api/airbnb', async (req, res) => {
   try {
-    // 0. まずテーブルの中身をクリア (clearConfirmationCodesSendToQueingAPI)
-    await airbnbService.clearConfirmationCodesSendToQueingAPI();
+    // 0. まずテーブルの中身をクリア (clearBigqueryContent)
+    await airbnbService.clearBigqueryContent();
 
     // A. 条件テーブル(test_condition_table) から条件を取得
     const conditionValues = await airbnbService.getDaysConditions();
@@ -23,7 +22,7 @@ app.post('/api/airbnb', async (req, res) => {
     const results = await airbnbService.getAirbnbReservations(conditionValues);
 
     // C. その結果を BigQuery のテーブルにインサート
-    await airbnbService.insertReservationsToQueueingAPI(results);
+    await airbnbService.insertReservationsToBigquery(results);
 
     // D. 処理結果をレスポンスとして返す
     res.status(200).json({

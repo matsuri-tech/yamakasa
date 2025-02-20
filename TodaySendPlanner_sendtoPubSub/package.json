@@ -1,0 +1,21 @@
+{
+  "name": "todaysendplanner_sendtopubsub",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google-cloud/bigquery": "^7.9.2",
+    "@google-cloud/pubsub": "^4.10.0"
+  },
+  "devDependencies": {
+    "@types/google-cloud__pubsub": "^0.18.1",
+    "@types/node": "^22.13.4",
+    "typescript": "^5.7.3"
+  }
+}

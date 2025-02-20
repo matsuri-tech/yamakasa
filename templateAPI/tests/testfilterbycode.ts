@@ -1,6 +1,6 @@
 import { SQL } from '../services/template';
 import { BigQueryUtility } from '../services/utility';
-import { FilterTemplateByCode } from '../services/template';
+import { FilterTemplateByCode} from '../services/template';
 
 // BigQuery のインスタンスを作成
 const bqUtility = new BigQueryUtility();
@@ -40,14 +40,14 @@ async function fetchAndProcessTemplateData() {
             data.status_checkout
         );
 
-        //console.log("Transformed Template Conditions:", JSON.stringify(templateData, null, 2));
+        console.log("Transformed Template Conditions:", JSON.stringify(templateData, null, 2));
 
         // 2. `FilterTemplateByCode` の処理を実行
         const filter = new FilterTemplateByCode();
 
         // guestInfoData を変換
         const guestConditions = filter.transformDataToConditions(data);
-        //console.log("Guest Conditions:", guestConditions);
+        console.log("Guest Conditions:", guestConditions);
 
         // compareConditions の結果を確認
         const matchedTemplates = filter.compareConditions(guestConditions, templateData);

@@ -49,13 +49,14 @@ app.post('/api/process', async (req, res) => {
           nationality
         );
     
-        // 他のクラスも呼び出すなら、必要に応じてインスタンス化
+        // 3. fetchGuestJourneyData を呼び出して GuestJourneyPhase インスタンスを取得
         const journey = await GuestJourneyPhase.fetchGuestJourneyData(
           confirmation_code,
           bigQueryUtility,
           status_precheckin
         );
-    
+
+        // 3. fetchGuestJourneyEventDat を呼び出して GuestJourneyEvent インスタンスを取得
         const event = await GuestJourneyEvent.fetchGuestJourneyEventData(
           confirmation_code,
           guest_review_submitted_at,
@@ -67,13 +68,36 @@ app.post('/api/process', async (req, res) => {
         console.log("Guest:", guest);
         console.log("Journey:", journey);
         console.log("Event:", event);
+
+        //ここでdata_dictにGuest, Journey, Eventをまとめて入れる
+        const data_dict = {
+          // guest 由来のフィールドをまとめる例
+          listing_id: guest?.listing_id ?? null,
+          processedNationality: guest?.nationality ?? null,
+          confirmation_code: confirmation_code,
+          // journey 由来のフィールドをまとめる例
+          today_date: journey?.today_date ?? null,
+          booked_date: journey?.booked_date ?? null,
+          checkin_date: journey?.checkin_date ?? null,
+          checkout_date: journey?.checkout_date ?? null,
+          days_from_booking: journey?.days_from_booking ?? null,
+          days_from_checkin: journey?.days_from_checkin ?? null,
+          days_from_checkout: journey?.days_from_checkout ?? null,
+          status_booked: journey?.status_booked ?? null,
+          status_checkin: journey?.status_checkin ?? null,
+          status_checkout: journey?.status_checkout ?? null,
+          // event 由来のフィールドをまとめる例
+          trouble_genre: event?.trouble_genre_user ?? null,
+          days_from_precheckin: event?.days_from_precheckin ?? null,
+          cleaning_delay: event?.cleaning_delay ?? null,
+          guest_review_submitted_at: event?.guest_review_submitted_at ?? null,
+          status_precheckin: status_precheckin,
+          status_review: status_review,
+          days_from_review: event?.days_from_review ?? null,
+        };
     
         // 結果をレスポンスに含めるなど
-        res.status(200).json({
-          guest: guest,
-          journey,
-          event
-        });
+        res.status(200).json(data_dict);
       } catch (error) {
         res.status(500).json({ message: "BigQueryエラー", error });
       }

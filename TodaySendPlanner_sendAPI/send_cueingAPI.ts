@@ -46,8 +46,8 @@ export class SendAPI {
     }
   }
 
-  // ① API1にリクエストを送信するメソッド
-  async sendApiRequest1(data: any) {
+  // ① templateAPIにリクエストを送信するメソッド
+  async sendtemplateAPI(data: any) {
     try {
       const token = await this.getAirbnbTokenFromAPI();
 
@@ -98,8 +98,8 @@ export class SendAPI {
     }
   }
 
-  // ③ API2にリクエストを送信
-  async sendApiRequest2(response: any): Promise<void> {
+  // ③ cueingAPIにリクエストを送信
+  async sendcueingAPI(response: any): Promise<void> {
     try {
       const token = await this.getAirbnbTokenFromAPI();
 

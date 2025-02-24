@@ -30,14 +30,14 @@ async function listenForMessages() {
       const data = messageData;
 
       // 2. 取得したデータを API1 に送信
-      const api1Response = await sendAPI.sendApiRequest1(data);
+      const api1Response = await sendAPI.sendtemplateAPI(data);
       const response = api1Response.data;
 
       // 3. BigQuery にデータをインサート
       await sendAPI.insertIntoBigQuery(response);
 
       // 4. API2 にリクエストを送信
-      await sendAPI.sendApiRequest2(response);
+      await sendAPI.sendcueingAPI(response);
 
       // メッセージ処理完了後に ack を送信
       message.ack();

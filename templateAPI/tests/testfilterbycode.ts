@@ -15,7 +15,7 @@ const data = {
     booked_date: "2025-01-10",
     checkin_date: "2025-02-15",
     checkout_date: "2025-02-20",
-    days_from_book: 0,
+    days_from_booked: 0,
     days_from_checkin: 0,
     days_from_checkout: 0,
     status_booked: true,
@@ -27,7 +27,12 @@ const data = {
     days_from_review: null,
     cleaning_delay: true,
     guest_review_submitted_at: null,
-    trouble_genre_user: ["{genre: A, B}", "{user: X, Y}"]
+    trouble_genre_user:[
+        { "user": "い", "genre": "C" },
+        { "user": "あ", "genre": "D" }
+    
+      ]
+
 };
 
 // SQLから取得したデータを `templateData` にセットする関数

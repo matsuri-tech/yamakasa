@@ -2,7 +2,7 @@
 guestファイルからうけとるデータ
 data_dict = {
     "listing_id": None,  # boolean
-    "processedNationality": None,  # boolean
+    "nationality": None,  # boolean
     "confirmation_code": "",  # string
     "today_date": "",  # string
     "booked_date": "",  # string
@@ -150,9 +150,6 @@ export class SQL {
 }
 
 
-  
-
-
 /*
 const templateConditions: { [templateId: string]: { content: string, conditions: { condition_id: number, key: string, operator: string, value: string | boolean | null }[] } } = {
   "1-1": {
@@ -183,197 +180,130 @@ guest_information側
   { key: "status_review", operator: "==", value: true },
   { key: "days_from_booking", operator: "==", value: 10 }
 ]
-
-
 */ 
-export class FilterTemplateByCode {
-  status_review: boolean = false;
-  days_from_review: number = 0;
-  days_from_booking: number = 0;
-  days_from_checkin: number = 0;
-  days_from_checkout: number = 0;
-  trouble_genre: string[] = [];
-  cleaning_delay: boolean = false;
-  listing_id: string = '';
-  nationality: string[] = [];
-  confirmation_code: string = '';
 
-  // data_dictの値を条件のリストに変換する
-  transformDataToConditions(data_dict: { [key: string]: any }): { key: string, operator: string, value: string[] }[] {
-    const conditions: { key: string, operator: string, value: string[] }[] = [];
-  
-    for (const key in data_dict) {
-      const value = data_dict[key];
-  
-      // null の場合
-      if (value === null) {
-        conditions.push({
-          key: key,
-          operator: "==",
-          value: ["null"] // null を文字列 "null" に変換
-        });
-      }
-      // 配列の場合は、各要素を string に変換
-      else if (Array.isArray(value)) {
-        conditions.push({
-          key: key,
-          operator: "==",
-          value: value.map((v: any) => String(v)) // 各要素を String() で変換
-        });
-      }
-      // boolean, number, string の場合
-      else if (
-        typeof value === "boolean" ||
-        typeof value === "number" ||
-        typeof value === "string"
-      ) {
-        conditions.push({
-          key: key,
-          operator: "==",
-          value: [String(value)] // 単一の値を String() で変換
-        });
-      }
+
+export class FilterTemplateByCode {
+    status_review: boolean = false;
+    days_from_review: number | null = null;
+    days_from_booking: number = 0;
+    days_from_checkin: number = 0;
+    days_from_checkout: number = 0;
+    trouble_genre: string[] = [];
+    cleaning_delay: boolean = false;
+    listing_id: string = '';
+    nationality: string[] = [];
+    confirmation_code: string = '';
+    status_booked: boolean = false;
+    status_checkin: boolean = false;
+    status_checkout: boolean = false;
+    days_from_precheckin: number | null = null;
+    status_precheckin: boolean = false;
+
+    // data_dictの値を条件のリストに変換する
+    transformDataToConditions(data_dict: { [key: string]: any }): { key: string, operator: string, value: string[] }[] {
+        const conditions: { key: string, operator: string, value: string[] }[] = [];
+    
+        for (const key in data_dict) {
+            let value = data_dict[key];
+    
+            // null または undefined の場合、null で処理
+            if (value === null || value === undefined) {
+                conditions.push({
+                    key: key,
+                    operator: "==",
+                    value: ["null"] // null の場合、"null" という文字列で処理
+                });
+            }
+            // 配列の場合は、各要素を string に変換
+            else if (Array.isArray(value)) {
+                conditions.push({
+                    key: key,
+                    operator: "==",
+                    value: value.map((v: any) => String(v)) // 各要素を String() で変換
+                });
+            }
+            // boolean, number, string の場合
+            else if (
+                typeof value === "boolean" ||
+                typeof value === "number" ||
+                typeof value === "string"
+            ) {
+                conditions.push({
+                    key: key,
+                    operator: "==",
+                    value: [String(value)] // 単一の値を String() で変換
+                });
+            }
+        }
+    
+        return conditions;
     }
   
-    return conditions;
-  }
-  
+    compareConditions(
+        guestInformation: any[],
+        templateConditions: {
+            [templateId: string]: {
+                content: string;
+                priority: number | null;
+                message_posting_time: string | null;
+                conditions: { key: string; operator: string; value: any[] }[];
+            };
+        }
+    ): {
+        confirmation_codes: string;
+        content: string;
+        priority: number | null;
+        message_posting_time: string | null;
+    }[] {
+        const templateResults: {
+            confirmation_codes: string;
+            content: string;
+            priority: number | null;
+            message_posting_time: string | null;
+        }[] = [];
 
-compareConditions(
-  guestInformation: any[], 
-  templateConditions: { [templateId: string]: { content: string, conditions: { key: string, operator: string, value: any[] }[] } }
-) {
-  const templateResults: { templateId: string, content: string }[] = [];
-  console.log("===== compareConditions 開始 =====");
-  //console.log("受け取った guestInformation:", JSON.stringify(guestInformation, null, 2));
-  //console.log("受け取った templateConditions:", JSON.stringify(templateConditions, null, 2));
+        console.log("===== compareConditionsUnified 開始 =====");
 
-  for (const templateId in templateConditions) {
-      const template = templateConditions[templateId];
-      let allConditionsMatch = true;
-      //console.log(`\n🔹 テンプレート ${templateId} のチェック開始`);
+        for (const templateId in templateConditions) {
+            const template = templateConditions[templateId];
+            let allConditionsMatch = true;
 
-      // 各条件を比較
-      for (const condition of template.conditions) {
-          //console.log(`  🔍 条件チェック: ${JSON.stringify(condition)}`);
-          
-          const matchingCondition = guestInformation.find(guest => {
-              //console.log(`    📌 ゲスト情報チェック: ${JSON.stringify(guest)}`);
-              
-              const guestValueArray = Array.isArray(guest.value) ? guest.value : [guest.value];
-              const conditionValueArray = Array.isArray(condition.value) ? condition.value : [condition.value];
+            for (const condition of template.conditions) {
+                const matchingCondition = guestInformation.find(guest => {
+                    const guestValueArray = Array.isArray(guest.value) ? guest.value : [guest.value];
+                    const conditionValueArray = Array.isArray(condition.value) ? condition.value : [condition.value];
 
-              if (condition.operator === "==") {
-                  const match = guest.key === condition.key &&
-                      guest.operator === condition.operator &&
-                      guestValueArray.some((val: string | number | boolean) => conditionValueArray.includes(val));
+                    if (condition.operator === "==") {
+                        return guest.key === condition.key &&
+                            guest.operator === condition.operator &&
+                            guestValueArray.some((val: string | number | boolean) => conditionValueArray.includes(val));
+                    } else if (condition.operator === "!=") {
+                        return guest.key === condition.key &&
+                            guest.operator === condition.operator &&
+                            !guestValueArray.some((val: string | number | boolean) => conditionValueArray.includes(val));
+                    }
+                    return false;
+                });
 
-                  //console.log(`      ✅ 条件一致: ${match}`);
-                  return match;
-              } else if (condition.operator === "!=") {
-                  const match = guest.key === condition.key &&
-                      guest.operator === condition.operator &&
-                      !guestValueArray.some((val: string | number | boolean) => conditionValueArray.includes(val));
+                if (!matchingCondition) {
+                    allConditionsMatch = false;
+                    break;
+                }
+            }
 
-                  //console.log(`      ❌ 条件不一致: ${match}`);
-                  return match;
-              }
+            if (allConditionsMatch) {
+                templateResults.push({
+                    confirmation_codes: templateId,
+                    content: template.content,
+                    priority: template.priority ?? null,
+                    message_posting_time: template.message_posting_time ?? null
+                });
+            }
+        }
 
-              return false;
-          });
+        console.log("===== compareConditionsUnified 終了 =====");
 
-          if (!matchingCondition) {
-              //console.log(`  ❌ 条件が一致しませんでした。テンプレート ${templateId} は適用不可。`);
-              allConditionsMatch = false;
-              break;
-          }
-      }
-
-      if (allConditionsMatch) {
-          //console.log(`✅ テンプレート ${templateId} は全条件を満たしました。`);
-          templateResults.push({
-              templateId: templateId,
-              content: template.content
-          });
-      }
-  }
-
-  console.log("===== compareConditions 終了 =====");
-  return templateResults;
-}
-
-compareConditionsforplanner(
-  guestInformation: any[],
-  templateConditions: { 
-    [templateId: string]: { 
-      content: string, 
-      priority: number | null, 
-      message_posting_time: string | null, 
-      conditions: { key: string, operator: string, value: any[] }[] 
-    } 
-  }
-): { confirmation_codes: string, priority: number, message_posting_time: string }[] {
-
-  const templateResults: { confirmation_codes: string, priority: number, message_posting_time: string }[] = [];
-  console.log("===== compareConditionsforplanner 開始 =====");
-  //console.log("受け取った guestInformation:", JSON.stringify(guestInformation, null, 2));
-  //console.log("受け取った templateConditions:", JSON.stringify(templateConditions, null, 2));
-
-  for (const templateId in templateConditions) {
-      const template = templateConditions[templateId];
-      let allConditionsMatch = true;
-      //console.log(`\n🔹 テンプレート ${templateId} のチェック開始`);
-
-      for (const condition of template.conditions) {
-          //console.log(`  🔍 条件チェック: ${JSON.stringify(condition)}`);
-
-          const matchingCondition = guestInformation.find(guest => {
-              //console.log(`    📌 ゲスト情報チェック: ${JSON.stringify(guest)}`);
-
-              const guestValueArray = Array.isArray(guest.value) ? guest.value : [guest.value];
-              const conditionValueArray = Array.isArray(condition.value) ? condition.value : [condition.value];
-
-              if (condition.operator === "==") {
-                  const match = guest.key === condition.key &&
-                      guest.operator === condition.operator &&
-                      guestValueArray.some((val: string | number | boolean) => conditionValueArray.includes(val));
-
-                  //console.log(`      ✅ 条件一致: ${match}`);
-                  return match;
-              } else if (condition.operator === "!=") {
-                  const match = guest.key === condition.key &&
-                      guest.operator === condition.operator &&
-                      !guestValueArray.some((val: string | number | boolean) => conditionValueArray.includes(val));
-
-                  //console.log(`      ❌ 条件不一致: ${match}`);
-                  return match;
-              }
-
-              return false;
-          });
-
-          if (!matchingCondition) {
-              //console.log(`  ❌ 条件が一致しませんでした。テンプレート ${templateId} は適用不可。`);
-              allConditionsMatch = false;
-              break;
-          }
-      }
-
-      if (allConditionsMatch) {
-          //console.log(`✅ テンプレート ${templateId} は全条件を満たしました。`);
-          templateResults.push({
-              confirmation_codes: templateId,
-              priority: template.priority ?? 0,  // null の場合 0 に置き換える
-              message_posting_time: template.message_posting_time ?? ""  // null の場合 空文字に置き換える
-          });
-      }
-  }
-
-  console.log("===== compareConditionsforplanner 終了 =====");
-  return templateResults;
-}
-
-
-
-
+        return templateResults;
+    }
 }

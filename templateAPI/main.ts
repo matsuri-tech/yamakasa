@@ -71,11 +71,11 @@ app.post('/api/process', async (req, res) => {
 
         //ここでdata_dictにGuest, Journey, Eventをまとめて入れる
         const data_dict = {
-          // guest 由来のフィールドをまとめる例
+          // guest 由来のフィールドをまとめる
           listing_id: guest?.listing_id ?? null,
-          processedNationality: guest?.nationality ?? null,
+          nationality: guest?.nationality ?? null,
           confirmation_code: confirmation_code,
-          // journey 由来のフィールドをまとめる例
+          // journey 由来のフィールドをまとめる
           today_date: journey?.today_date ?? null,
           booked_date: journey?.booked_date ?? null,
           checkin_date: journey?.checkin_date ?? null,
@@ -86,7 +86,7 @@ app.post('/api/process', async (req, res) => {
           status_booked: journey?.status_booked ?? null,
           status_checkin: journey?.status_checkin ?? null,
           status_checkout: journey?.status_checkout ?? null,
-          // event 由来のフィールドをまとめる例
+          // event 由来のフィールドをまとめる
           trouble_genre: event?.trouble_genre_user ?? null,
           days_from_precheckin: event?.days_from_precheckin ?? null,
           cleaning_delay: event?.cleaning_delay ?? null,

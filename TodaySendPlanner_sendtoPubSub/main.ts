@@ -11,6 +11,17 @@ const bigQueryUtility = new BigQueryUtility();
 const topicName = 'test-TodaySendPlanner'; // Pub/Sub トピック名
 const dataProcessor = new DataProcessor(bigQueryUtility, topicName);
 
+/* ▼ 追加: トピックが無い場合は作成しておく ▼ */
+dataProcessor.ensureTopicExists()
+  .then(() => {
+    console.log('Topic check/creation complete.');
+  })
+  .catch((err) => {
+    console.error('Error ensuring topic exists:', err);
+  });
+/* ▲ 追加ここまで ▲ */
+
+// エンドポイントの定義
 app.post('/api/airbnb', async (req, res) => {
   try {
     // 1. BigQuery からデータを取得

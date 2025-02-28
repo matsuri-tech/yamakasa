@@ -8,9 +8,32 @@ export class DataProcessor {
 
   constructor(bigQueryUtility: BigQueryUtility, topicName: string) {
     this.bigQueryUtility = bigQueryUtility;
-    this.pubsub = new PubSub({ apiEndpoint: 'localhost:8085' }); // Pub/Subエミュレーター用
+    // ▼ 追加/修正：projectId を明示したい場合は設定
+    this.pubsub = new PubSub({
+      apiEndpoint: 'localhost:8085',
+      projectId: 'm2m-core', // 必要ならご利用のprojectIdに合わせる
+    });
+    // ▲ 追加/修正：ローカルエミュレーターを使う際にprojectIdがずれると見つからない場合がある
+
     this.topicName = topicName;
   }
+
+  // ▼ 追加: トピックがなければ作成するメソッド
+  public async ensureTopicExists(): Promise<void> {
+    // 現在存在するトピック一覧を取得
+    const [topics] = await this.pubsub.getTopics();
+    // トピック名は "projects/<projectId>/topics/<topicName>" の形式になっている
+    const fullTopicName = `projects/${this.pubsub.projectId}/topics/${this.topicName}`;
+
+    const found = topics.some((t) => t.name === fullTopicName);
+    if (!found) {
+      await this.pubsub.createTopic(this.topicName);
+      console.log(`Created topic: ${this.topicName}`);
+    } else {
+      console.log(`Topic already exists: ${this.topicName}`);
+    }
+  }
+  // ▲ 追加ここまで
 
   // BigQueryからデータを取得するメソッド
   async fetchBigQueryData(): Promise<any[]> {
@@ -19,7 +42,7 @@ export class DataProcessor {
         SELECT confirmation_code, guest_review_submitted, guest_review_submitted_at, pre_checked_in, nationality
         FROM \`m2m-core.su_wo.confirmation_codes_send_to_queingAPI\`
       `;
-      const [rows] = await this.bigQueryUtility.selectFromBQ(query);
+      const rows = await this.bigQueryUtility.selectFromBQ(query);
       console.log(`Fetched ${rows.length} rows from BigQuery.`);
       return rows;
     } catch (error) {

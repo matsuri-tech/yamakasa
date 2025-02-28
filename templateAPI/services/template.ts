@@ -23,7 +23,7 @@ data_dict = {
     "guest_review_submitted_at": "",  # string
 }
 
-*/ 
+*/
 
 
 import { BigQueryUtility } from './utility';
@@ -180,7 +180,7 @@ guest_information側
   { key: "status_review", operator: "==", value: true },
   { key: "days_from_booking", operator: "==", value: 10 }
 ]
-*/ 
+*/
 
 
 export class FilterTemplateByCode {
@@ -203,10 +203,10 @@ export class FilterTemplateByCode {
     // data_dictの値を条件のリストに変換する
     transformDataToConditions(data_dict: { [key: string]: any }): { key: string, operator: string, value: string[] }[] {
         const conditions: { key: string, operator: string, value: string[] }[] = [];
-    
+
         for (const key in data_dict) {
             let value = data_dict[key];
-    
+
             // null または undefined の場合、null で処理
             if (value === null || value === undefined) {
                 conditions.push({
@@ -236,10 +236,56 @@ export class FilterTemplateByCode {
                 });
             }
         }
-    
+
         return conditions;
     }
-  
+
+    compareTroubleGenreUser(
+        guest: { trouble_genre_user: { genre: string[], user: string[] }[] },
+        condition: { trouble_genre_user: { genre: string[], user: string[] }[] },
+        operator: "==" | "!="
+    ): boolean {
+        for (const guestItem of guest.trouble_genre_user) {
+            let matchFound = false;
+
+            // ゲストの各組み合わせ（genre と user）を順番通りに確認
+            for (let i = 0; i < guestItem.genre.length; i++) {
+                const guestGenre = guestItem.genre[i];
+                const guestUser = guestItem.user[i];
+
+                // 条件の中で一致するものを探す
+                for (const conditionItem of condition.trouble_genre_user) {
+                    const genreMatch = conditionItem.genre.includes(guestGenre); // 条件の genre と一致するか
+                    const userMatch = conditionItem.user.includes(guestUser);   // 条件の user と一致するか
+
+                    // 一致する場合、matchFound を true に設定
+                    if (genreMatch && userMatch) {
+                        matchFound = true;
+                        break;  // 一度一致すれば次のゲスト情報を確認
+                    }
+                }
+
+                // 両方が一致すればループ終了
+                if (matchFound) break;
+            }
+
+            // == の場合、一致しない場合は false
+            if (operator === "==" && !matchFound) {
+                return false;
+            }
+
+            // != の場合、一致があった場合は false
+            if (operator === "!=" && matchFound) {
+                return false;
+            }
+        }
+
+        // すべてのゲスト情報が一致した場合は true
+        return operator === "==" ? true : true;
+    }
+
+    // 比較のメインメソッド
+    //戻り値に何を設定するかの分岐はメイン関数で行うため、ここでは戻り値になるものすべてを返す。
     compareConditions(
         guestInformation: any[],
         templateConditions: {
@@ -247,6 +293,7 @@ export class FilterTemplateByCode {
                 content: string;
                 priority: number | null;
                 message_posting_time: string | null;
+                is_force_send: boolean; // is_force_sendを追加
                 conditions: { key: string; operator: string; value: any[] }[];
             };
         }
@@ -255,12 +302,14 @@ export class FilterTemplateByCode {
         content: string;
         priority: number | null;
         message_posting_time: string | null;
+        is_force_send: boolean;  // 戻り値にis_force_sendを含める
     }[] {
         const templateResults: {
             confirmation_codes: string;
             content: string;
             priority: number | null;
             message_posting_time: string | null;
+            is_force_send: boolean;
         }[] = [];
 
         console.log("===== compareConditionsUnified 開始 =====");
@@ -274,6 +323,7 @@ export class FilterTemplateByCode {
                     const guestValueArray = Array.isArray(guest.value) ? guest.value : [guest.value];
                     const conditionValueArray = Array.isArray(condition.value) ? condition.value : [condition.value];
 
+                    // 普通のkey,valueでの比較（== と != の比較）
                     if (condition.operator === "==") {
                         return guest.key === condition.key &&
                             guest.operator === condition.operator &&
@@ -286,18 +336,43 @@ export class FilterTemplateByCode {
                     return false;
                 });
 
+                // 条件に一致するゲスト情報がない場合、false
                 if (!matchingCondition) {
                     allConditionsMatch = false;
                     break;
                 }
             }
 
+            // trouble_genre_user に関する条件チェック
+            const troubleGenreUserCondition = template.conditions.find(condition => condition.key === "trouble_genre_user");
+            if (troubleGenreUserCondition) {
+                const operator = troubleGenreUserCondition.operator as "==" | "!=";
+
+                // guestInformation から "trouble_genre_user" を正しく取得
+                const guestTrouble = guestInformation.find(guest => guest.key === "trouble_genre_user");
+
+                // condition と guest の両方に "trouble_genre_user" が存在する場合のみ比較
+                if (guestTrouble && guestTrouble.value && Array.isArray(guestTrouble.value)) {
+                    const conditionTrouble = template.conditions.find(condition => condition.key === "trouble_genre_user");
+
+                    // condition も確認して、trouble_genre_user のチェックを行う
+                    if (conditionTrouble && conditionTrouble.value && Array.isArray(conditionTrouble.value)) {
+                        const isMatch = this.compareTroubleGenreUser(guestTrouble, conditionTrouble, operator);
+                        if (!isMatch) {
+                            allConditionsMatch = false;
+                        }
+                    }
+                }
+            }
+
+            // 条件が一致した場合、結果に追加
             if (allConditionsMatch) {
                 templateResults.push({
                     confirmation_codes: templateId,
                     content: template.content,
                     priority: template.priority ?? null,
-                    message_posting_time: template.message_posting_time ?? null
+                    message_posting_time: template.message_posting_time ?? null,
+                    is_force_send: template.is_force_send // is_force_sendを結果に含める
                 });
             }
         }

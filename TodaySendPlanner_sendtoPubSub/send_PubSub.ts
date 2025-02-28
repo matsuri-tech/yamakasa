@@ -1,5 +1,5 @@
-import { BigQueryUtility } from './utility';
 import { PubSub } from '@google-cloud/pubsub';
+import { BigQueryUtility } from './utility';
 
 export class DataProcessor {
   private bigQueryUtility: BigQueryUtility;
@@ -8,7 +8,7 @@ export class DataProcessor {
 
   constructor(bigQueryUtility: BigQueryUtility, topicName: string) {
     this.bigQueryUtility = bigQueryUtility;
-    this.pubsub = new PubSub();
+    this.pubsub = new PubSub({ apiEndpoint: 'localhost:8085' }); // Pub/Subエミュレーター用
     this.topicName = topicName;
   }
 
@@ -16,7 +16,7 @@ export class DataProcessor {
   async fetchBigQueryData(): Promise<any[]> {
     try {
       const query = `
-        SELECT confirmation_code, guest_review_submitted, guest_review_submitted_at, pre_checked_in, nationalities
+        SELECT confirmation_code, guest_review_submitted, guest_review_submitted_at, pre_checked_in, nationality
         FROM \`m2m-core.su_wo.confirmation_codes_send_to_queingAPI\`
       `;
       const [rows] = await this.bigQueryUtility.selectFromBQ(query);

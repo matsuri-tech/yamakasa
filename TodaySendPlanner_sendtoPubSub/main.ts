@@ -8,7 +8,7 @@ app.use(bodyParser.json());
 
 // BigQueryUtility と DataProcessor を準備
 const bigQueryUtility = new BigQueryUtility();
-const topicName = 'your-topic-name'; // Pub/Sub トピック名
+const topicName = 'test-TodaySendPlanner'; // Pub/Sub トピック名
 const dataProcessor = new DataProcessor(bigQueryUtility, topicName);
 
 app.post('/api/airbnb', async (req, res) => {

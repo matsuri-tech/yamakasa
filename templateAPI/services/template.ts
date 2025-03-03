@@ -103,50 +103,138 @@ export class SQL {
         }
     }
 
-    // SQLの結果を `templateConditions` 形式に変換
+    // SQLの結果 (rows) をテンプレートIDごとに分類し、条件を一つの配列にまとめ templateConditions に格納
     async transformToTemplateConditions(
         status_booked: boolean,
         status_checkin: boolean,
         status_checkout: boolean
-    ): Promise<{ [templateId: string]: { content: string, priority: number | null, message_posting_time: string | null, is_force_send: boolean, conditions: { condition_id: string, key: string, operator: string, value: string[] }[] } }> {
+      ): Promise<{
+        [templateId: string]: {
+          content: string;
+          priority: number | null;
+          message_posting_time: string | null;
+          is_force_send: boolean;
+          conditions: {
+            condition_id: string;
+            key: string;
+            operator: string;
+            value: any;
+          }[];
+        };
+      }> {
         try {
-            const rows = await this.filter_template_by_SQL(status_booked, status_checkin, status_checkout);
-            const templateConditions: { [templateId: string]: any } = {};
-
-            rows.forEach(row => {
-                const { template_id, content, condition_id, condition_key, operator, condition_value, priority, message_posting_time, is_force_send } = row;
-
-                // `condition_value` を `ARRAY<STRING>` 型として処理
-                const valueArray = Array.isArray(condition_value) ? condition_value : [condition_value];
-
-                // `priority` を `number | null` に統一
-                const parsedPriority: number | null = typeof priority === "string" ? parseFloat(priority) : priority;
-                const validPriority: number = parsedPriority !== null && !isNaN(parsedPriority) ? parsedPriority : 0;
-
-                if (!templateConditions[template_id]) {
-                    templateConditions[template_id] = {
-                        content,
-                        priority: validPriority,
-                        message_posting_time,
-                        is_force_send,
-                        conditions: []
-                    };
-                }
-
-                templateConditions[template_id].conditions.push({
-                    condition_id: condition_id.toString(), // `STRING` に統一
-                    key: condition_key,
-                    operator,
-                    value: valueArray // `REPEATED` 型に適合
-                });
+          const rows = await this.filter_template_by_SQL(status_booked, status_checkin, status_checkout);
+          const templateConditions: { [templateId: string]: any } = {};
+      
+          // (1) まずは普通に格納
+          rows.forEach((row) => {
+            const {
+              template_id,
+              content,
+              condition_id,
+              condition_key,
+              operator,
+              condition_value,
+              priority,
+              message_posting_time,
+              is_force_send,
+            } = row;
+      
+            // condition_value を配列化
+            const valueArray = Array.isArray(condition_value) ? condition_value : [condition_value];
+      
+            // priority を number | null に
+            const parsedPriority: number | null = typeof priority === "string" ? parseFloat(priority) : priority;
+            const validPriority: number = parsedPriority !== null && !isNaN(parsedPriority) ? parsedPriority : 0;
+      
+            if (!templateConditions[template_id]) {
+              templateConditions[template_id] = {
+                content,
+                priority: validPriority,
+                message_posting_time,
+                is_force_send,
+                conditions: [],
+              };
+            }
+      
+            // conditions 配列にそのまま push
+            templateConditions[template_id].conditions.push({
+              condition_id: String(condition_id),
+              key: condition_key,
+              operator,
+              value: valueArray,
             });
-
-            return templateConditions;
+          });
+      
+          // (2) 追加処理: 「trouble_genre」と「trouble_user」があれば組み合わせる
+          for (const tId in templateConditions) {
+            const condArray = templateConditions[tId].conditions;
+      
+            // 新たにまとめた条件を格納するための配列
+            const combined: any[] = [];
+            // まだ使っていない条件を一時的に保持する配列
+            const unused: any[] = [];
+      
+            // trouble_genre / trouble_user を探し出して組み合わせるための一時マップ
+            // ここでは key=(operator, condition_idはどう扱うか?) 次第でやり方変わりますが、
+            // ひとまず「operator が同じものを合わせる」などの単純ロジックを例示します。
+            const troubleGenreStore: { [op: string]: any } = {};
+            const troubleUserStore: { [op: string]: any } = {};
+      
+            for (const cond of condArray) {
+              if (cond.key === "trouble_genre") {
+                // operator ごとに保存 (必要なら condition_id などでも細分化)
+                troubleGenreStore[cond.operator] = cond;
+              } else if (cond.key === "trouble_user") {
+                troubleUserStore[cond.operator] = cond;
+              } else {
+                // それ以外は一旦 unused へ
+                unused.push(cond);
+              }
+            }
+      
+            // trouble_genre と trouble_user の両方があればまとめる (operator 同じと仮定)
+            for (const op in troubleGenreStore) {
+              if (troubleUserStore[op]) {
+                // 「それぞれの value を合体」→ {genre: [...], user: [...]} に
+                const genreValue = troubleGenreStore[op].value; // string[]
+                const userValue  = troubleUserStore[op].value;  // string[]
+                // condition_id はどうするか？まとめるなら文字列結合など:
+                const combinedConditionId = 
+                  troubleGenreStore[op].condition_id + "," + troubleUserStore[op].condition_id;
+      
+                combined.push({
+                  condition_id: combinedConditionId,
+                  key: "trouble_genre_user",
+                  operator: op,
+                  value: {
+                    genre: genreValue,
+                    user:  userValue
+                  }
+                });
+              } else {
+                // user が無いなら、unused に入れるかどうかは要件次第
+                unused.push(troubleGenreStore[op]);
+              }
+            }
+            // trouble_user のほうが余っているケース
+            for (const op in troubleUserStore) {
+              if (!troubleGenreStore[op]) {
+                // user だけある
+                unused.push(troubleUserStore[op]);
+              }
+            }
+      
+            // 最終的に combined + unused を conditions に再格納
+            templateConditions[tId].conditions = [...unused, ...combined];
+          }
+      
+          return templateConditions;
         } catch (error) {
-            console.error("Error transforming SQL result to templateConditions:", error);
-            throw new Error("Failed to transform data");
+          console.error("Error transforming SQL result to templateConditions:", error);
+          throw new Error("Failed to transform data");
         }
-    }
+    }      
 }
 
 
@@ -201,44 +289,68 @@ export class FilterTemplateByCode {
     status_precheckin: boolean = false;
 
     // data_dictの値を条件のリストに変換する
-    transformDataToConditions(data_dict: { [key: string]: any }): { key: string, operator: string, value: string[] }[] {
-        const conditions: { key: string, operator: string, value: string[] }[] = [];
-
+    transformDataToConditions(data_dict: { [key: string]: any }): { key: string, operator: string, value: any[] }[] {
+        const conditions: { key: string, operator: string, value: any[] }[] = [];
+      
         for (const key in data_dict) {
-            let value = data_dict[key];
-
-            // null または undefined の場合、null で処理
-            if (value === null || value === undefined) {
-                conditions.push({
-                    key: key,
-                    operator: "==",
-                    value: ["null"] // null の場合、"null" という文字列で処理
-                });
+          let value = data_dict[key];
+      
+          // null または undefined の場合、null で処理
+          if (value === null || value === undefined) {
+            conditions.push({
+              key: key,
+              operator: "==",
+              value: ["null"] // null の場合、"null" という文字列で処理
+            });
+          }
+          // 配列の場合（nationality など）
+          else if (Array.isArray(value)) {
+            conditions.push({
+              key: key,
+              operator: "==",
+              value: value.map((v: any) => String(v)) // 文字列配列に統一
+            });
+          }
+          // オブジェクトの場合（trouble_genre_user など）
+          else if (typeof value === "object") {
+            // もし { genre: string[], user: string[] } 形式なら、まとめて一つの要素に包む
+            if (Array.isArray(value.genre) && Array.isArray(value.user)) {
+              conditions.push({
+                key: key,
+                operator: "==",
+                value: [
+                  {
+                    genre: value.genre.map((v: any) => String(v)), 
+                    user:  value.user.map((v: any) => String(v))
+                  }
+                ]
+              });
+            } else {
+              // それ以外のオブジェクトの場合は、
+              // どう扱うか要件次第。単に JSON.stringify して1要素配列に格納するなど。
+              conditions.push({
+                key: key,
+                operator: "==",
+                value: [JSON.stringify(value)]
+              });
             }
-            // 配列の場合は、各要素を string に変換
-            else if (Array.isArray(value)) {
-                conditions.push({
-                    key: key,
-                    operator: "==",
-                    value: value.map((v: any) => String(v)) // 各要素を String() で変換
-                });
-            }
-            // boolean, number, string の場合
-            else if (
-                typeof value === "boolean" ||
-                typeof value === "number" ||
-                typeof value === "string"
-            ) {
-                conditions.push({
-                    key: key,
-                    operator: "==",
-                    value: [String(value)] // 単一の値を String() で変換
-                });
-            }
+          }
+          // boolean, number, string の場合
+          else if (
+            typeof value === "boolean" ||
+            typeof value === "number" ||
+            typeof value === "string"
+          ) {
+            conditions.push({
+              key: key,
+              operator: "==",
+              value: [String(value)]
+            });
+          }
         }
-
+      
         return conditions;
-    }
+      }      
 
     compareTroubleGenreUser(
         guest: { trouble_genre_user: { genre: string[], user: string[] }[] },
@@ -357,11 +469,19 @@ export class FilterTemplateByCode {
 
                     // condition も確認して、trouble_genre_user のチェックを行う
                     if (conditionTrouble && conditionTrouble.value && Array.isArray(conditionTrouble.value)) {
-                        const isMatch = this.compareTroubleGenreUser(guestTrouble, conditionTrouble, operator);
+                        const isMatch = this.compareTroubleGenreUser(
+                          {
+                            trouble_genre_user: guestTrouble.value as { genre: string[], user: string[] }[]
+                          },
+                          {
+                            trouble_genre_user: conditionTrouble.value as { genre: string[], user: string[] }[]
+                          },
+                          operator
+                        );
                         if (!isMatch) {
-                            allConditionsMatch = false;
+                          allConditionsMatch = false;
                         }
-                    }
+                    }                      
                 }
             }
 

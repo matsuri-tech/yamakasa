@@ -171,9 +171,11 @@ export class GuestJourneyPhase {
   }
 }
 
+type TroubleGenreUserObject = { genre: string[] } | { user: string[] };
+
 //トラブル、レビュー、清掃遅延、事前予約の情報を取得するクラス
 export class GuestJourneyEvent {
-  trouble_genre_user: string[];
+  trouble_genre_user: TroubleGenreUserObject[];
   status_precheckin: boolean;
   days_from_precheckin: number | null;
   status_review: boolean;
@@ -188,7 +190,7 @@ export class GuestJourneyEvent {
     status_review: boolean,
     guest_review_submitted_at: string | null,
     confirmation_code: string,
-    trouble_genre_user: string[] = []
+    trouble_genre_user: TroubleGenreUserObject[] = []
   ) {
     this.trouble_genre_user = trouble_genre_user;
     this.status_precheckin = status_precheckin;
@@ -265,8 +267,10 @@ export class GuestJourneyEvent {
 
         // "{genre: A, B}" と "{user: あ, い}" の2要素を配列化し、this.trouble_genre_userに格納
         this.trouble_genre_user = [
-          `{genre: ${genres.join(', ')}}`,
-          `{user: ${users.join(', ')}}`
+          {
+            genre: genres,
+            user:  users
+          },
         ];
       }
     } catch (error) {

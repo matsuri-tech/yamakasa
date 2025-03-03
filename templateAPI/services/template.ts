@@ -410,15 +410,15 @@ export class FilterTemplateByCode {
             };
         }
     ): {
-        confirmation_codes: string;
-        content: string;
+        template_id: string;
+        message: string;
         priority: number | null;
         message_posting_time: string | null;
         is_force_send: boolean;  // 戻り値にis_force_sendを含める
     }[] {
         const templateResults: {
-            confirmation_codes: string;
-            content: string;
+            template_id: string;
+            message: string;
             priority: number | null;
             message_posting_time: string | null;
             is_force_send: boolean;
@@ -488,8 +488,8 @@ export class FilterTemplateByCode {
             // 条件が一致した場合、結果に追加
             if (allConditionsMatch) {
                 templateResults.push({
-                    confirmation_codes: templateId,
-                    content: template.content,
+                    template_id: templateId,
+                    message: template.content,
                     priority: template.priority ?? null,
                     message_posting_time: template.message_posting_time ?? null,
                     is_force_send: template.is_force_send // is_force_sendを結果に含める

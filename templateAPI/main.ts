@@ -119,7 +119,7 @@ app.post('/api/process', async (req, res) => {
     const status_checkout = journey?.status_checkout ?? false;
 
     // テーブル名は実際の要件に応じて修正
-    const sql = new SQL("m2m-core.su_wo.test_condition_table", bigQueryUtility);
+    const sql = new SQL("m2m-core.su_wo.test_template_table", bigQueryUtility);
     const templateConditions = await sql.transformToTemplateConditions(
       status_booked,
       status_checkin,

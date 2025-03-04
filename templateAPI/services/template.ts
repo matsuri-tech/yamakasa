@@ -128,7 +128,6 @@ export class SQL {
     }> {
         try {
             const rows = await this.filter_template_by_SQL(status_booked, status_checkin, status_checkout);
-            //console.log("Rows from SQL:", rows);
             const templateConditions: { [templateId: string]: any } = {};
 
             // (1) 各行の条件をtemplate_idごとにグループ化
@@ -162,15 +161,6 @@ export class SQL {
                         conditions: [],
                     };
                 }
-
-                /*
-                console.log(`Adding condition to template ${template_id}:`, {
-                    condition_id,
-                    key: condition_key,
-                    operator,
-                    value: valueArray,
-                });
-                */
 
                 // 条件を条件配列に追加
                 templateConditions[template_id].conditions.push({
@@ -279,7 +269,16 @@ guest_information側
 ]
 */
 
-
+type GuestTroubleItem = {
+    genre: string[];
+    user:  string[];
+};
+    
+  type ConditionTroubleItem = {
+    genre: string[];
+    user:  string[];
+};
+  
 export class FilterTemplateByCode {
     status_review: boolean = false;
     days_from_review: number | null = null;
@@ -296,218 +295,305 @@ export class FilterTemplateByCode {
     status_checkout: boolean = false;
     days_from_precheckin: number | null = null;
     status_precheckin: boolean = false;
-
+  
     // data_dictの値を条件のリストに変換する
     transformDataToConditions(data_dict: { [key: string]: any }): { key: string, operator: string, value: any[] }[] {
         const conditions: { key: string, operator: string, value: any[] }[] = [];
-
+      
         for (const key in data_dict) {
-            let value = data_dict[key];
-
-            // null または undefined の場合、null で処理
-            if (value === null || value === undefined) {
-                conditions.push({
-                    key: key,
-                    operator: "==",
-                    value: ["null"] // null の場合、"null" という文字列で処理
-                });
+          let value = data_dict[key];
+      
+          // 1) null / undefined
+          if (value === null || value === undefined) {
+            conditions.push({
+              key,
+              operator: "==",
+              value: ["null"]
+            });
+          }
+          // 2) trouble_genre_userが単一オブジェクト { genre: string[], user: string[] } の場合
+          else if (key === "trouble_genre_user" && typeof value === "object" && !Array.isArray(value)) {
+            // 例: trouble_genre_user: { genre: [...], user: [...] }
+            if (Array.isArray(value.genre) && Array.isArray(value.user)) {
+              // { genre:[], user:[] } をそのまま1つのオブジェクトとして value に格納
+              conditions.push({
+                key,
+                operator: "==",
+                value: [
+                  {
+                    genre: value.genre.map((g: any) => String(g)),
+                    user:  value.user.map((u: any) => String(u))
+                  }
+                ]
+              });
+            } else {
+              // 想定外のオブジェクト形式なら、JSON.stringifyなどにする
+              conditions.push({
+                key,
+                operator: "==",
+                value: [JSON.stringify(value)]
+              });
             }
-            // 配列の場合（nationality など）
-            else if (Array.isArray(value)) {
-                conditions.push({
-                    key: key,
-                    operator: "==",
-                    value: value.map((v: any) => String(v)) // 文字列配列に統一
-                });
+          }
+          // 3) trouble_genre_userが配列の形（例: [{ genre:[], user:[] }, ...]）の場合
+          else if (key === "trouble_genre_user" && Array.isArray(value)) {
+            // 例: trouble_genre_user: [ { genre: [...], user: [...] } ]
+            const mappedArray = value.map((item: any) => {
+              if (item && Array.isArray(item.genre) && Array.isArray(item.user)) {
+                return {
+                  genre: item.genre.map(String),
+                  user:  item.user.map(String)
+                };
+              } else {
+                // 想定外データならJSON.stringify等に変換
+                return JSON.stringify(item);
+              }
+            });
+      
+            conditions.push({
+              key,
+              operator: "==",
+              value: mappedArray
+            });
+          }
+          // 4) 配列（他のキー例: nationalityなど）
+          else if (Array.isArray(value)) {
+            conditions.push({
+              key,
+              operator: "==",
+              value: value.map((v: any) => String(v))
+            });
+          }
+          // 5) オブジェクト
+          else if (typeof value === "object") {
+            if (Array.isArray(value.genre) && Array.isArray(value.user)) {
+              // { genre: [], user: [] } という形
+              conditions.push({
+                key,
+                operator: "==",
+                value: [
+                  {
+                    genre: value.genre.map((g: any) => String(g)),
+                    user:  value.user.map((u: any) => String(u))
+                  }
+                ]
+              });
+            } else {
+              // それ以外のオブジェクトはJSON.stringifyなど
+              conditions.push({
+                key,
+                operator: "==",
+                value: [JSON.stringify(value)]
+              });
             }
-            // オブジェクトの場合（trouble_genre_user など）
-            else if (typeof value === "object") {
-                // もし { genre: string[], user: string[] } 形式なら、まとめて一つの要素に包む
-                if (Array.isArray(value.genre) && Array.isArray(value.user)) {
-                    conditions.push({
-                        key: key,
-                        operator: "==",
-                        value: [
-                            {
-                                genre: value.genre.map((v: any) => String(v)),
-                                user: value.user.map((v: any) => String(v))
-                            }
-                        ]
-                    });
-                } else {
-                    // それ以外のオブジェクトの場合は、
-                    // どう扱うか要件次第。単に JSON.stringify して1要素配列に格納するなど。
-                    conditions.push({
-                        key: key,
-                        operator: "==",
-                        value: [JSON.stringify(value)]
-                    });
-                }
-            }
-            // boolean, number, string の場合
-            else if (
-                typeof value === "boolean" ||
-                typeof value === "number" ||
-                typeof value === "string"
-            ) {
-                conditions.push({
-                    key: key,
-                    operator: "==",
-                    value: [String(value)]
-                });
-            }
+          }
+          // 6) boolean, number, string
+          else if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
+            conditions.push({
+              key,
+              operator: "==",
+              value: [String(value)]
+            });
+          }
         }
-
+      
         return conditions;
     }
-
+      
+      
+  
     compareTroubleGenreUser(
-        guest: { trouble_genre_user: { genre: string[], user: string[] }[] },
-        condition: { trouble_genre_user: { genre: string[], user: string[] }[] },
-        operator: "==" | "!="
+      guest: { trouble_genre_user: { genre: string[]; user: string[] }[] },
+      condition: { trouble_genre_user: { genre: string[]; user: string[] }[] },
+      operator: "==" | "!="
     ): boolean {
-        for (const guestItem of guest.trouble_genre_user) {
-            let matchFound = false;
-
-            // ゲストの各組み合わせ（genre と user）を順番通りに確認
-            for (let i = 0; i < guestItem.genre.length; i++) {
-                const guestGenre = guestItem.genre[i];
-                const guestUser = guestItem.user[i];
-
-                // 条件の中で一致するものを探す
-                for (const conditionItem of condition.trouble_genre_user) {
-                    const genreMatch = conditionItem.genre.includes(guestGenre); // 条件の genre と一致するか
-                    const userMatch = conditionItem.user.includes(guestUser);   // 条件の user と一致するか
-
-                    // 一致する場合、matchFound を true に設定
-                    if (genreMatch && userMatch) {
-                        matchFound = true;
-                        break;  // 一度一致すれば次のゲスト情報を確認
-                    }
-                }
-
-                // 両方が一致すればループ終了
-                if (matchFound) break;
-            }
-
-            // == の場合、一致しない場合は false
-            if (operator === "==" && !matchFound) {
-                return false;
-            }
-
-            // != の場合、一致があった場合は false
-            if (operator === "!=" && matchFound) {
-                return false;
-            }
+  
+      console.log("=== compareTroubleGenreUser START ===");
+  
+      // ゲストの trouble_genre_user を順番に見る
+      for (const guestItem of guest.trouble_genre_user) {
+        // エッジケース: genre,userが配列であるかを確認
+        if (!Array.isArray(guestItem.genre) || !Array.isArray(guestItem.user)) {
+          console.log("Guest item is invalid =>", guestItem);
+          continue;
         }
-
-        // すべてのゲスト情報が一致した場合は true
-        return operator === "==" ? true : true;
+  
+        // ペアとみなす要素数
+        const pairLength = Math.min(guestItem.genre.length, guestItem.user.length);
+        console.log("GuestItem =>", guestItem, ", pairLength:", pairLength);
+  
+        for (let i = 0; i < pairLength; i++) {
+          const guestGenre = guestItem.genre[i];
+          const guestUser  = guestItem.user[i];
+  
+          console.log(`Check pair (genre=${guestGenre}, user=${guestUser}) against template...`);
+  
+          // テンプレート側
+          for (const condItem of condition.trouble_genre_user) {
+            if (!Array.isArray(condItem.genre) || !Array.isArray(condItem.user)) {
+              console.log("CondItem is invalid =>", condItem);
+              continue;
+            }
+            const genreMatch = condItem.genre.includes(guestGenre);
+            const userMatch  = condItem.user.includes(guestUser);
+  
+            if (genreMatch && userMatch) {
+              console.log("=> Found a match!");
+              if (operator === "==") {
+                console.log("=> Returning TRUE");
+                return true;  
+              } else if (operator === "!=") {
+                console.log("=> Returning FALSE (!= operator)");
+                return false;
+              }
+            }
+          }
+        }
+      }
+  
+      // 最後まで見つからなかった
+      if (operator === "==") {
+        console.log("No match found => returning FALSE");
+        return false;
+      } else {
+        console.log("No match found => returning TRUE (because !=)");
+        return true;
+      }
     }
-
+  
     // 比較のメインメソッド
-    //戻り値に何を設定するかの分岐はメイン関数で行うため、ここでは戻り値になるものすべてを返す。
     compareConditions(
         guestInformation: any[],
         templateConditions: {
-            [templateId: string]: {
-                content: string;
-                priority: number | null;
-                message_posting_time: string | null;
-                is_force_send: boolean; // is_force_sendを追加
-                conditions: { key: string; operator: string; value: any[] }[];
-            };
+          [templateId: string]: {
+            content: string;
+            priority: number | null;
+            message_posting_time: string | null;
+            is_force_send: boolean;
+            conditions: { key: string; operator: string; value: any[] }[];
+          };
         }
-    ): {
+      ): {
         template_id: string;
         message: string;
         priority: number | null;
         message_posting_time: string | null;
-        is_force_send: boolean;  // 戻り値にis_force_sendを含める
-    }[] {
+        is_force_send: boolean;
+      }[] {
         const templateResults: {
-            template_id: string;
-            message: string;
-            priority: number | null;
-            message_posting_time: string | null;
-            is_force_send: boolean;
+          template_id: string;
+          message: string;
+          priority: number | null;
+          message_posting_time: string | null;
+          is_force_send: boolean;
         }[] = [];
-
+      
         console.log("===== compareConditionsUnified 開始 =====");
-
+      
         for (const templateId in templateConditions) {
-            const template = templateConditions[templateId];
-            let allConditionsMatch = true;
-
-            for (const condition of template.conditions) {
-                const matchingCondition = guestInformation.find(guest => {
-                    const guestValueArray = Array.isArray(guest.value) ? guest.value : [guest.value];
-                    const conditionValueArray = Array.isArray(condition.value) ? condition.value : [condition.value];
-
-                    // 普通のkey,valueでの比較（== と != の比較）
-                    if (condition.operator === "==") {
-                        return guest.key === condition.key &&
-                            guest.operator === condition.operator &&
-                            guestValueArray.some((val: string | number | boolean) => conditionValueArray.includes(val));
-                    } else if (condition.operator === "!=") {
-                        return guest.key === condition.key &&
-                            guest.operator === condition.operator &&
-                            !guestValueArray.some((val: string | number | boolean) => conditionValueArray.includes(val));
-                    }
-                    return false;
-                });
-
-                // 条件に一致するゲスト情報がない場合、false
-                if (!matchingCondition) {
-                    allConditionsMatch = false;
-                    break;
-                }
+          const template = templateConditions[templateId];
+          let allConditionsMatch = true;
+      
+          // 1) 普通の条件チェック (trouble_genre_user以外)
+          for (const condition of template.conditions) {
+            if (condition.key === 'trouble_genre_user') {
+              console.log(`Skipping condition ${condition.key} in normal logic`);
+              continue;
             }
-
-            // trouble_genre_user に関する条件チェック
-            const troubleGenreUserCondition = template.conditions.find(condition => condition.key === "trouble_genre_user");
-            if (troubleGenreUserCondition) {
-                const operator = troubleGenreUserCondition.operator as "==" | "!=";
-
-                // guestInformation から "trouble_genre_user" を正しく取得
-                const guestTrouble = guestInformation.find(guest => guest.key === "trouble_genre_user");
-
-                // condition と guest の両方に "trouble_genre_user" が存在する場合のみ比較
-                if (guestTrouble && guestTrouble.value && Array.isArray(guestTrouble.value)) {
-                    const conditionTrouble = template.conditions.find(condition => condition.key === "trouble_genre_user");
-
-                    // condition も確認して、trouble_genre_user のチェックを行う
-                    if (conditionTrouble && conditionTrouble.value && Array.isArray(conditionTrouble.value)) {
-                        const isMatch = this.compareTroubleGenreUser(
-                            {
-                                trouble_genre_user: guestTrouble.value as { genre: string[], user: string[] }[]
-                            },
-                            {
-                                trouble_genre_user: conditionTrouble.value as { genre: string[], user: string[] }[]
-                            },
-                            operator
-                        );
-                        if (!isMatch) {
-                            allConditionsMatch = false;
-                        }
-                    }
-                }
+            console.log(`Checking normal condition => key: ${condition.key}, operator: ${condition.operator}, value: ${JSON.stringify(condition.value)}`);
+      
+            const matchingCondition = guestInformation.find(guest => {
+              // guest.value と condition.value が配列かどうかは不定。とりあえず配列に包む
+              const guestValueArray = Array.isArray(guest.value) ? guest.value : [guest.value];
+              const conditionValueArray = Array.isArray(condition.value) ? condition.value : [condition.value];
+      
+              if (condition.operator === "==") {
+                return guest.key === condition.key &&
+                  guest.operator === condition.operator &&
+                  guestValueArray.some((val: string | number | boolean) => conditionValueArray.includes(val));
+              } else if (condition.operator === "!=") {
+                return guest.key === condition.key &&
+                  guest.operator === condition.operator &&
+                  !guestValueArray.some((val: string | number | boolean) => conditionValueArray.includes(val));
+              }
+              return false;
+            });
+      
+            // 条件に一致するゲスト情報がない場合、false
+            if (!matchingCondition) {
+              console.log("=> No matching condition found; set allConditionsMatch = false");
+              allConditionsMatch = false;
+              break;
+            } else {
+              console.log("=> Found matching condition =>", matchingCondition);
             }
-
-            // 条件が一致した場合、結果に追加
+          }
+      
+          // 2) trouble_genre_user の特別チェック
+          const troubleGenreUserCondition = template.conditions.find(c => c.key === "trouble_genre_user");
+          if (troubleGenreUserCondition) {
+            console.log("Now checking trouble_genre_user separately =>", troubleGenreUserCondition);
+      
             if (allConditionsMatch) {
-                templateResults.push({
-                    template_id: templateId,
-                    message: template.content,
-                    priority: template.priority ?? null,
-                    message_posting_time: template.message_posting_time ?? null,
-                    is_force_send: template.is_force_send // is_force_sendを結果に含める
-                });
+              const operator = troubleGenreUserCondition.operator as "==" | "!=";
+              const guestTrouble = guestInformation.find(g => g.key === "trouble_genre_user");
+      
+              // ① ゲスト側を配列に包む/単一オブジェクトなら配列にする
+              if (!guestTrouble || !guestTrouble.value) {
+                console.log("=> guestTrouble not found => unmatched");
+                allConditionsMatch = false;
+              } else {
+                // たとえば、トラブル情報が配列か単体オブジェクトかを吸収
+                const guestTroubleArray = Array.isArray(guestTrouble.value)
+                  ? guestTrouble.value
+                  : [ guestTrouble.value ];  // 単体なら配列に包む
+      
+                // ② テンプレ側を配列に包む
+                const conditionValue = troubleGenreUserCondition.value;
+                const conditionTroubleArray = Array.isArray(conditionValue)
+                  ? conditionValue
+                  : [ conditionValue ];  // 単体なら配列に包む
+      
+                if (!Array.isArray(conditionTroubleArray)) {
+                  console.log("=> conditionTrouble.value is invalid => unmatched");
+                  allConditionsMatch = false;
+                } else {
+                  // ③ compareTroubleGenreUser に配列を渡す
+                  const isMatch = this.compareTroubleGenreUser(
+                    { trouble_genre_user: guestTroubleArray },
+                    { trouble_genre_user: conditionTroubleArray },
+                    operator
+                  );
+                  if (!isMatch) {
+                    console.log("=> trouble_genre_user was not matched => set allConditionsMatch = false");
+                    allConditionsMatch = false;
+                  } else {
+                    console.log("=> trouble_genre_user matched => keep allConditionsMatch = true");
+                  }
+                }
+              }
+            } else {
+              console.log("=> Already allConditionsMatch = false; skipping trouble_genre_user check");
             }
+          }
+      
+          if (allConditionsMatch) {
+            console.log(`=== Template ${templateId} matched! ===`);
+            templateResults.push({
+              template_id: templateId,
+              message: template.content,
+              priority: template.priority ?? null,
+              message_posting_time: template.message_posting_time ?? null,
+              is_force_send: template.is_force_send
+            });
+          } else {
+            console.log(`=== Template ${templateId} did NOT match ===`);
+          }
         }
-
+      
         console.log("===== compareConditionsUnified 終了 =====");
-
+        console.log("templateResults:", JSON.stringify(templateResults, null, 2));
+      
         return templateResults;
-    }
-}
+    }   
+}  

@@ -171,11 +171,17 @@ export class GuestJourneyPhase {
   }
 }
 
-type TroubleGenreUserObject = { genre: string[] } | { user: string[] };
+export type TroubleGenreUserObject = {
+  genre: string[];
+  user:  string[];
+};
+
 
 //トラブル、レビュー、清掃遅延、事前予約の情報を取得するクラス
 export class GuestJourneyEvent {
-  trouble_genre_user: TroubleGenreUserObject[];
+  // ===== ここを「配列」→「単一オブジェクト」に変更 =====
+  trouble_genre_user: TroubleGenreUserObject;
+
   status_precheckin: boolean;
   days_from_precheckin: number | null;
   status_review: boolean;
@@ -190,7 +196,8 @@ export class GuestJourneyEvent {
     status_review: boolean,
     guest_review_submitted_at: string | null,
     confirmation_code: string,
-    trouble_genre_user: TroubleGenreUserObject[] = []
+    // 受け取るときも単体オブジェクトに
+    trouble_genre_user: TroubleGenreUserObject = { genre: [], user: [] }
   ) {
     this.trouble_genre_user = trouble_genre_user;
     this.status_precheckin = status_precheckin;
@@ -216,11 +223,13 @@ export class GuestJourneyEvent {
     status_review: boolean,
     bigQueryUtility: BigQueryUtility
   ): Promise<GuestJourneyEvent> {
+    // trouble_genre_user はひとまずデフォルト値にしておく（空のgenre/user）
     const guestJourneyEvent = new GuestJourneyEvent(
       status_precheckin,
       status_review,
       guest_review_submitted_at,
-      confirmation_code
+      confirmation_code,
+      { genre: [], user: [] }
     );
 
     try {
@@ -265,13 +274,11 @@ export class GuestJourneyEvent {
         const genres = troubleRows.map(row => row.genre);        // => ['A', 'B']
         const users  = troubleRows.map(row => row.user_name);    // => ['あ', 'い']
 
-        // "{genre: A, B}" と "{user: あ, い}" の2要素を配列化し、this.trouble_genre_userに格納
-        this.trouble_genre_user = [
-          {
-            genre: genres,
-            user:  users
-          },
-        ];
+        // ===== ここを配列ではなく単一オブジェクトにする =====
+        this.trouble_genre_user = {
+          genre: genres,
+          user:  users
+        };
       }
     } catch (error) {
       console.error('Error fetching trouble genre/user data:', error);
@@ -346,12 +353,10 @@ export class GuestJourneyEvent {
       return null;
     }
   
-    // もし 'Date' 型なら ISO文字列に変換して文字列化
     if (eventDate instanceof Date) {
       eventDate = eventDate.toISOString(); // 例: "2025-02-17T23:59:00.000Z"
     }
   
-    // ここで eventDate は string 型になっている
     const eventDateOnly = eventDate.split(' ')[0];
   
     return Math.floor(
@@ -359,5 +364,4 @@ export class GuestJourneyEvent {
       (1000 * 60 * 60 * 24)
     );
   }
-  
 }

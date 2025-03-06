@@ -104,7 +104,7 @@ app.post('/api/process', async (req, res) => {
       status_booked: journey?.status_booked ?? null,
       status_checkin: journey?.status_checkin ?? null,
       status_checkout: journey?.status_checkout ?? null,
-      trouble_genre: event?.trouble_genre_user ?? null,
+      trouble_genre_user: event?.trouble_genre_user ?? null,
       days_from_precheckin: event?.days_from_precheckin ?? null,
       cleaning_delay: event?.cleaning_delay ?? null,
       guest_review_submitted_at: event?.guest_review_submitted_at ?? null,
@@ -112,6 +112,7 @@ app.post('/api/process', async (req, res) => {
       status_review: status_review,
       days_from_review: event?.days_from_review ?? null
     };
+    console.log("data_dict before transform:", JSON.stringify(data_dict, null, 2));
 
     // 5. SQL クラスを使って、条件付きのテンプレート情報を取得
     const status_booked = journey?.status_booked ?? false;

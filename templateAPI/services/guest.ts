@@ -274,11 +274,11 @@ export class GuestJourneyEvent {
         const genres = troubleRows.map(row => row.genre);        // => ['A', 'B']
         const users  = troubleRows.map(row => row.user_name);    // => ['あ', 'い']
 
-        // ===== ここを配列ではなく単一オブジェクトにする =====
         this.trouble_genre_user = {
           genre: genres,
           user:  users
         };
+        //trouble_genre_user = {"genre": ["A", "B"], "user": ["あ", "い"]}
       }
     } catch (error) {
       console.error('Error fetching trouble genre/user data:', error);

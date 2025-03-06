@@ -34,8 +34,8 @@ async function main() {
       // trouble_genre_userを配列またはオブジェクトで用意 (要件次第)
       trouble_genre_user: [
         {
-          genre: ['A', 'B'],
-          user:  ['あ', 'い']
+          genre: ['C', 'B'],
+          user:  ['あ', 'う']
         }
       ],
       cleaning_delay: true,

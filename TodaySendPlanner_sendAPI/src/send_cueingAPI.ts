@@ -68,10 +68,10 @@ export class SendAPI {
         nationalities: data.nationalities,
       };
 
-      const response = await axios.post('https://api1.example.com', body, { headers });
+      const response = await axios.post('https://us-central1-m2m-core.cloudfunctions.net/templateAPI', body, { headers });
       return response;
     } catch (error) {
-      console.error('Error sending request to API 1:', error);
+      console.error('Error sending request to templateAPI:', error);
       throw error;
     }
   }
@@ -119,9 +119,9 @@ export class SendAPI {
       };
 
       await axios.post('https://api2.example.com', body, { headers });
-      console.log('Sent request to API 2');
+      console.log('Sent request to cueingAPI');
     } catch (error) {
-      console.error('Error sending request to API 2:', error);
+      console.error('Error sending request to cueingAPI:', error);
       throw error;
     }
   }

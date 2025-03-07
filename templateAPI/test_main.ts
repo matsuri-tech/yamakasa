@@ -1,6 +1,6 @@
-import { SQL } from './services/template';         // SQL クラスがあるファイル (例)
-import { BigQueryUtility } from './services/utility'; // BigQueryアクセス用ユーティリティ
-import { FilterTemplateByCode } from './services/template'; // FilterTemplateByCode クラスがあるファイル (例)
+import { SQL } from './src/services/template';         // SQL クラスがあるファイル (例)
+import { BigQueryUtility } from './src/services/utility'; // BigQueryアクセス用ユーティリティ
+import { FilterTemplateByCode } from './src/services/template'; // FilterTemplateByCode クラスがあるファイル (例)
 
 async function main() {
   try {

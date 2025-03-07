@@ -1,4 +1,4 @@
-import { FilterTemplateByCode } from './services/template'; // クラスのあるファイルパスに合わせて
+import { FilterTemplateByCode } from './src/services/template'; // クラスのあるファイルパスに合わせて
 
 async function main() {
   // 1. FilterTemplateByCode のインスタンスを作成

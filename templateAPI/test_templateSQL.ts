@@ -1,5 +1,5 @@
-import { SQL } from './services/template';
-import { BigQueryUtility } from './services/utility';
+import { SQL } from './src/services/template';
+import { BigQueryUtility } from './src/services/utility';
 
 async function runTest() {
   // BigQueryUtilityインスタンスを作成（認証情報が設定されていることを前提）

@@ -9,7 +9,7 @@ export class DataProcessor {
   constructor(bigQueryUtility: BigQueryUtility, topicName: string) {
     this.bigQueryUtility = bigQueryUtility;
     this.pubsub = new PubSub({
-      projectId: 'TodaySendPlanner', // 必要ならご利用のprojectIdに合わせる
+      projectId: 'm2m-core',
     });
 
     this.topicName = topicName;

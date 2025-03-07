@@ -8,21 +8,16 @@ export class DataProcessor {
 
   constructor(bigQueryUtility: BigQueryUtility, topicName: string) {
     this.bigQueryUtility = bigQueryUtility;
-    // ▼ 追加/修正：projectId を明示したい場合は設定
     this.pubsub = new PubSub({
-      apiEndpoint: 'localhost:8085',
-      projectId: 'm2m-core', // 必要ならご利用のprojectIdに合わせる
+      projectId: 'TodaySendPlanner', // 必要ならご利用のprojectIdに合わせる
     });
-    // ▲ 追加/修正：ローカルエミュレーターを使う際にprojectIdがずれると見つからない場合がある
 
     this.topicName = topicName;
   }
 
-  // ▼ 追加: トピックがなければ作成するメソッド
+  // 追加: トピックがなければ作成するメソッド
   public async ensureTopicExists(): Promise<void> {
-    // 現在存在するトピック一覧を取得
     const [topics] = await this.pubsub.getTopics();
-    // トピック名は "projects/<projectId>/topics/<topicName>" の形式になっている
     const fullTopicName = `projects/${this.pubsub.projectId}/topics/${this.topicName}`;
 
     const found = topics.some((t) => t.name === fullTopicName);
@@ -33,7 +28,6 @@ export class DataProcessor {
       console.log(`Topic already exists: ${this.topicName}`);
     }
   }
-  // ▲ 追加ここまで
 
   // BigQueryからデータを取得するメソッド
   async fetchBigQueryData(): Promise<any[]> {

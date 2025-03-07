@@ -1,9 +1,9 @@
 {
   "name": "todaysendplanner_sendapi",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "deploy": "gcloud functions deploy TodaySendPlanner_sendAPI --gen2 --runtime nodejs20 --trigger-topic=TodaySendPlanner --region=us-central1 --project=m2m-core --allow-unauthenticated"
   },
   "keywords": [],
   "author": "",
@@ -11,6 +11,7 @@
   "description": "",
   "dependencies": {
     "@google-cloud/bigquery": "^7.9.2",
+    "@google-cloud/functions-framework": "^3.4.6",
     "@google-cloud/pubsub": "^4.10.0",
     "axios": "^1.7.9",
     "dotenv": "^16.4.7"

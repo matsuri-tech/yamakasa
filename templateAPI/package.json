@@ -1,24 +1,26 @@
 {
   "name": "templateapi",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
   "directories": {
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "deploy": "gcloud functions deploy templateAPI --runtime nodejs20 --trigger-http --allow-unauthenticated"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@google-cloud/bigquery": "^7.9.2",
+    "@google-cloud/functions-framework": "^3.4.6",
     "express": "^4.21.2"
   },
   "devDependencies": {
-    "@types/express": "^4.17.17",
-    "@types/node": "^22.13.4",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.13.9",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.8.2"
   }
 }

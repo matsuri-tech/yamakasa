@@ -68,7 +68,7 @@ export class SendAPI {
         nationalities: data.nationalities,
       };
 
-      const response = await axios.post('https://us-central1-m2m-core.cloudfunctions.net/templateAPI', body, { headers });
+      const response = await axios.post('https://us-central1-m2m-core.cloudfunctions.net/templateAPI/api/process', body, { headers });
       return response;
     } catch (error) {
       console.error('Error sending request to templateAPI:', error);

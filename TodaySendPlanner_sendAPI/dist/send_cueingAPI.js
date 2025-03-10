@@ -57,7 +57,7 @@ class SendAPI {
                 pre_checked_in: data.pre_checked_in,
                 nationalities: data.nationalities,
             };
-            const response = await axios_1.default.post('https://us-central1-m2m-core.cloudfunctions.net/templateAPI', body, { headers });
+            const response = await axios_1.default.post('https://us-central1-m2m-core.cloudfunctions.net/templateAPI/api/process', body, { headers });
             return response;
         }
         catch (error) {

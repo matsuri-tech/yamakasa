@@ -128,7 +128,7 @@ class AirbnbReservationService {
     // 4) 別の Cloud Function にリクエストを送信する
     async triggerAnotherCloudFunction() {
         try {
-            await axios_1.default.post('https://us-central1-m2m-core.cloudfunctions.net/TodaySendPlanner_sendtoPubSub');
+            await axios_1.default.post('https://us-central1-m2m-core.cloudfunctions.net/TodaySendPlanner_sendtoPubSub/api/airbnb');
             console.log('Triggered another Cloud Function');
         }
         catch (error) {
